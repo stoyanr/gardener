@@ -21,6 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1alpha1 "github.com/gardener/gardener/pkg/apis/core/v1alpha1"
 	v1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -609,6 +610,11 @@ func (in *DefaultStatus) DeepCopyInto(out *DefaultStatus) {
 		in, out := &in.State, &out.State
 		*out = new(runtime.RawExtension)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.Resources != nil {
+		in, out := &in.Resources, &out.Resources
+		*out = make([]corev1alpha1.NamedResourceReference, len(*in))
+		copy(*out, *in)
 	}
 	return
 }

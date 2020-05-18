@@ -17,6 +17,7 @@ package extensions
 import (
 	"fmt"
 
+	gardencorev1alpha1 "github.com/gardener/gardener/pkg/apis/core/v1alpha1"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 
@@ -213,4 +214,23 @@ func (u unstructuredStatusAccessor) SetConditions(conditions []gardencorev1beta1
 	if err != nil {
 		return
 	}
+}
+
+// GetResources implements Status.
+func (u unstructuredStatusAccessor) GetResources() []gardencorev1alpha1.NamedResourceReference {
+	val, ok, err := unstructured.NestedFieldNoCopy(u.UnstructuredContent(), "status", "resources")
+	if err != nil || !ok {
+		return nil
+	}
+	var resources []gardencorev1alpha1.NamedResourceReference
+	interfaceResourceSlice := val.([]interface{})
+	for _, interfaceResource := range interfaceResourceSlice {
+		new := interfaceResource.(map[string]interface{})
+		resource := &gardencorev1alpha1.NamedResourceReference{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(new, resource); err != nil {
+			return nil
+		}
+		resources = append(resources, *resource)
+	}
+	return resources
 }

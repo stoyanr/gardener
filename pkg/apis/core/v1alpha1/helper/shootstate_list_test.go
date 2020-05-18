@@ -47,7 +47,7 @@ var _ = Describe("ShootStateList", func() {
 							Kind:    extensionKind,
 							Name:    extensionName,
 							Purpose: extensionPurpose,
-							State:   extensionData,
+							State:   &extensionData,
 						},
 					},
 				},
@@ -61,7 +61,7 @@ var _ = Describe("ShootStateList", func() {
 				Expect(resource.Kind).To(Equal(extensionKind))
 				Expect(resource.Name).To(Equal(extensionName))
 				Expect(resource.Purpose).To(Equal(extensionPurpose))
-				Expect(resource.State).To(Equal(extensionData))
+				Expect(resource.State).To(Equal(&extensionData))
 			})
 
 			It("should return nil if extension resource state cannot be found", func() {
@@ -95,7 +95,7 @@ var _ = Describe("ShootStateList", func() {
 					Kind:    barString,
 					Name:    &barString,
 					Purpose: &barString,
-					State:   runtime.RawExtension{Raw: []byte("state")},
+					State:   &runtime.RawExtension{Raw: []byte("state")},
 				}
 				list.Upsert(newResource)
 				Expect(len(list)).To(Equal(2))
@@ -108,11 +108,11 @@ var _ = Describe("ShootStateList", func() {
 					Kind:    extensionKind,
 					Name:    extensionName,
 					Purpose: extensionPurpose,
-					State:   newState,
+					State:   &newState,
 				}
 				list.Upsert(updatedResource)
 				Expect(len(list)).To(Equal(1))
-				Expect(list[0].State).To(Equal(newState))
+				Expect(list[0].State).To(Equal(&newState))
 			})
 		})
 	})

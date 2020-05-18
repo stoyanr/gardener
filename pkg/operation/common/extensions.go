@@ -23,6 +23,7 @@ import (
 	"github.com/gardener/gardener/pkg/api/extensions"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
+	"github.com/gardener/gardener/pkg/utils"
 	"github.com/gardener/gardener/pkg/utils/flow"
 	"github.com/gardener/gardener/pkg/utils/kubernetes/health"
 	"github.com/gardener/gardener/pkg/utils/retry"
@@ -125,7 +126,20 @@ func DeleteExtensionCR(
 		return err
 	}
 
-	return client.IgnoreNotFound(c.Delete(ctx, obj, deleteOpts...))
+	if err := client.IgnoreNotFound(c.Delete(ctx, obj, deleteOpts...)); err != nil {
+		return err
+	}
+
+	extensionStatus := obj.GetExtensionStatus()
+	if extensionStatus != nil {
+		for _, resource := range extensionStatus.GetResources() {
+			if err := utils.DeleteObjectByRef(ctx, c, &resource.ResourceRef, namespace); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // DeleteExtensionCRs lists all extension resources and loops over them. It executes the given <predicateFunc> for each

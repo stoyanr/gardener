@@ -15,6 +15,7 @@
 package v1alpha1
 
 import (
+	gardencorev1alpha1 "github.com/gardener/gardener/pkg/apis/core/v1alpha1"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,6 +40,8 @@ type Status interface {
 	GetLastError() *gardencorev1beta1.LastError
 	// GetState retrieves the State of the extension
 	GetState() *runtime.RawExtension
+	// GetResources retrieves the list of named resource references referred to in the state by their names.
+	GetResources() []gardencorev1alpha1.NamedResourceReference
 }
 
 // Spec is the spec section of an Object.

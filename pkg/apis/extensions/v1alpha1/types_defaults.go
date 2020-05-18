@@ -15,6 +15,7 @@
 package v1alpha1
 
 import (
+	gardencorev1alpha1 "github.com/gardener/gardener/pkg/apis/core/v1alpha1"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -63,6 +64,9 @@ type DefaultStatus struct {
 	// State can be filled by the operating controller with what ever data it needs.
 	// +optional
 	State *runtime.RawExtension `json:"state,omitempty"`
+	// Resources holds a list of named resource references that can be referred to in the state by their names.
+	// +optional
+	Resources []gardencorev1alpha1.NamedResourceReference `json:"resources,omitempty"`
 }
 
 // GetProviderStatus implements Status.
@@ -98,4 +102,9 @@ func (d *DefaultStatus) GetObservedGeneration() int64 {
 // GetState implements Status.
 func (d *DefaultStatus) GetState() *runtime.RawExtension {
 	return d.State
+}
+
+// GetResources implements Status.
+func (d *DefaultStatus) GetResources() []gardencorev1alpha1.NamedResourceReference {
+	return d.Resources
 }
