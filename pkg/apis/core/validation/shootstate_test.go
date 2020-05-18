@@ -85,5 +85,38 @@ var _ = Describe("validation", func() {
 				"Field": Equal("spec.extensions[0].purpose"),
 			}))
 		})
+
+		It("should forbid shootState containing extension resources w/o names or w/ invalid references", func() {
+			purpose := "purpose"
+			shootState.Spec.Extensions = append(shootState.Spec.Extensions, core.ExtensionResourceState{
+				State:   runtime.RawExtension{},
+				Kind:    "ControlPlane",
+				Purpose: &purpose,
+				Resources: []core.NamedResourceReference{
+					{},
+				},
+			})
+
+			errorList := ValidateShootState(shootState)
+			Expect(errorList).To(HaveLen(4))
+			Expect(errorList).To(ConsistOf(
+				PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeRequired),
+					"Field": Equal("spec.resources[0].name"),
+				})),
+				PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeRequired),
+					"Field": Equal("spec.resources[0].resourceRef.kind"),
+				})),
+				PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeRequired),
+					"Field": Equal("spec.resources[0].resourceRef.name"),
+				})),
+				PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeRequired),
+					"Field": Equal("spec.resources[0].resourceRef.apiVersion"),
+				})),
+			))
+		})
 	})
 })
