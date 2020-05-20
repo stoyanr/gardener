@@ -70,7 +70,7 @@ func ValidateShootStateSpec(shootStateSpec *core.ShootStateSpec, fldPath *field.
 	}
 
 	for i, resource := range shootStateSpec.Resources {
-		allErrs = append(allErrs, validateCrossVersionObjectReference(resource.CrossVersionObjectReference, fldPath.Child("resources").Index(i))...)
+		allErrs = append(allErrs, ValidateCrossVersionObjectReference(resource.CrossVersionObjectReference, fldPath.Child("resources").Index(i))...)
 	}
 
 	return allErrs

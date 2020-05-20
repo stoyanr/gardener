@@ -568,6 +568,11 @@ func (in *DefaultSpec) DeepCopyInto(out *DefaultSpec) {
 		*out = new(runtime.RawExtension)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.Resources != nil {
+		in, out := &in.Resources, &out.Resources
+		*out = make([]corev1alpha1.NamedResourceReference, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

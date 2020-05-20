@@ -15,6 +15,7 @@
 package validation_test
 
 import (
+	gardencorev1alpha1 "github.com/gardener/gardener/pkg/apis/core/v1alpha1"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	. "github.com/gardener/gardener/pkg/apis/extensions/validation"
 
@@ -57,6 +58,27 @@ var _ = Describe("Extension validation tests", func() {
 			})), PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":  Equal(field.ErrorTypeRequired),
 				"Field": Equal("spec.type"),
+			}))))
+		})
+
+		It("should forbid extensions with invalid resources", func() {
+			ext.Spec.Resources = []gardencorev1alpha1.NamedResourceReference{
+				{},
+			}
+			errorList := ValidateExtension(ext)
+
+			Expect(errorList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+				"Type":  Equal(field.ErrorTypeRequired),
+				"Field": Equal("spec.resources[0].name"),
+			})), PointTo(MatchFields(IgnoreExtras, Fields{
+				"Type":  Equal(field.ErrorTypeRequired),
+				"Field": Equal("spec.resources[0].resourceRef.kind"),
+			})), PointTo(MatchFields(IgnoreExtras, Fields{
+				"Type":  Equal(field.ErrorTypeRequired),
+				"Field": Equal("spec.resources[0].resourceRef.name"),
+			})), PointTo(MatchFields(IgnoreExtras, Fields{
+				"Type":  Equal(field.ErrorTypeRequired),
+				"Field": Equal("spec.resources[0].resourceRef.apiVersion"),
 			}))))
 		})
 

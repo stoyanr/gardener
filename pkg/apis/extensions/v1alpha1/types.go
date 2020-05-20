@@ -52,6 +52,8 @@ type Spec interface {
 	GetExtensionPurpose() *string
 	// GetProviderConfig retrieves the provider config.
 	GetProviderConfig() *runtime.RawExtension
+	// GetResources retrieves the list of named resource references referred to in ProviderConfig by their names.
+	GetResources() []gardencorev1alpha1.NamedResourceReference
 }
 
 // Object is an extension object resource.

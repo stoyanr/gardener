@@ -221,6 +221,8 @@ type Extension struct {
 	ProviderConfig *ProviderConfig
 	// Disabled allows to disable extensions that were marked as 'globally enabled' by Gardener administrators.
 	Disabled *bool
+	// ResourceNames holds a list of resource reference names that are referred to in the ProviderConfig.
+	ResourceNames []string
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////

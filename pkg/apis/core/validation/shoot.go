@@ -104,7 +104,7 @@ func ValidateShootSpec(meta metav1.ObjectMeta, spec *core.ShootSpec, fldPath *fi
 
 	allErrs = append(allErrs, validateAddons(spec.Addons, spec.Kubernetes.KubeAPIServer, fldPath.Child("addons"))...)
 	allErrs = append(allErrs, validateDNS(spec.DNS, fldPath.Child("dns"))...)
-	allErrs = append(allErrs, validateExtensions(spec.Extensions, fldPath.Child("extensions"))...)
+	allErrs = append(allErrs, validateExtensions(spec.Extensions, spec.Resources, fldPath.Child("extensions"))...)
 	allErrs = append(allErrs, validateResources(spec.Resources, fldPath.Child("resources"))...)
 	allErrs = append(allErrs, validateKubernetes(spec.Kubernetes, fldPath.Child("kubernetes"))...)
 	allErrs = append(allErrs, validateNetworking(spec.Networking, fldPath.Child("networking"))...)
@@ -465,11 +465,24 @@ func validateDNS(dns *core.DNS, fldPath *field.Path) field.ErrorList {
 	return allErrs
 }
 
-func validateExtensions(extensions []core.Extension, fldPath *field.Path) field.ErrorList {
+func validateExtensions(extensions []core.Extension, resources []core.NamedResourceReference, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	for i, extension := range extensions {
 		if extension.Type == "" {
 			allErrs = append(allErrs, field.Required(fldPath.Index(i).Child("type"), "field must not be empty"))
+		}
+		for _, resourceName := range extension.ResourceNames {
+			found := false
+			for _, resource := range resources {
+				if resource.Name == resourceName {
+					found = true
+					break
+				}
+			}
+			if !found {
+				allErrs = append(allErrs, field.Invalid(fldPath.Index(i).Child("resourceNames"), extension.ResourceNames, "resourceNames must only contain known resource names"))
+				break
+			}
 		}
 	}
 	return allErrs
@@ -481,7 +494,7 @@ func validateResources(resources []core.NamedResourceReference, fldPath *field.P
 		if resource.Name == "" {
 			allErrs = append(allErrs, field.Required(fldPath.Index(i).Child("name"), "field must not be empty"))
 		}
-		allErrs = append(allErrs, validateCrossVersionObjectReference(resource.ResourceRef, fldPath.Index(i).Child("resourceRef"))...)
+		allErrs = append(allErrs, ValidateCrossVersionObjectReference(resource.ResourceRef, fldPath.Index(i).Child("resourceRef"))...)
 	}
 	return allErrs
 }
