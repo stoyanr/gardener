@@ -583,6 +583,10 @@ message Extension {
   // Disabled allows to disable extensions that were marked as 'globally enabled' by Gardener administrators.
   // +optional
   optional bool disabled = 3;
+
+  // ResourceNames holds a list of resource reference names that are referred to in the ProviderConfig.
+  // +optional
+  repeated string resourceNames = 4;
 }
 
 // ExtensionResourceState contains the kind of the extension custom resource and its last observed state in the Shoot's

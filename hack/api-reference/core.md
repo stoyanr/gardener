@@ -3358,6 +3358,18 @@ bool
 <p>Disabled allows to disable extensions that were marked as &lsquo;globally enabled&rsquo; by Gardener administrators.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>resourceNames</code></br>
+<em>
+[]string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ResourceNames holds a list of resource reference names that are referred to in the ProviderConfig.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="core.gardener.cloud/v1beta1.Gardener">Gardener

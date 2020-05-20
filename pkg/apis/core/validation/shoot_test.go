@@ -518,6 +518,43 @@ var _ = Describe("Shoot Validation Tests", func() {
 			Expect(errorList).To(BeEmpty())
 		})
 
+		It("should forbid passing an extension w/ invalid resource names", func() {
+			extension := core.Extension{
+				Type:          "arbitrary",
+				ResourceNames: []string{"test"},
+			}
+			shoot.Spec.Extensions = append(shoot.Spec.Extensions, extension)
+
+			errorList := ValidateShoot(shoot)
+
+			Expect(errorList).To(ConsistOf(
+				PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeInvalid),
+					"Field": Equal("spec.extensions[0].resourceNames"),
+				}))))
+		})
+
+		It("should allow passing an extension w/ valid resource names", func() {
+			extension := core.Extension{
+				Type:          "arbitrary",
+				ResourceNames: []string{"test"},
+			}
+			shoot.Spec.Extensions = append(shoot.Spec.Extensions, extension)
+			ref := core.NamedResourceReference{
+				Name: "test",
+				ResourceRef: autoscalingv1.CrossVersionObjectReference{
+					Kind:       "Secret",
+					Name:       "test-secret",
+					APIVersion: "v1",
+				},
+			}
+			shoot.Spec.Resources = append(shoot.Spec.Resources, ref)
+
+			errorList := ValidateShoot(shoot)
+
+			Expect(errorList).To(BeEmpty())
+		})
+
 		It("should forbid resources w/o names or w/ invalid references", func() {
 			ref := core.NamedResourceReference{}
 			shoot.Spec.Resources = append(shoot.Spec.Resources, ref)

@@ -34,6 +34,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	dnsv1alpha1 "github.com/gardener/external-dns-management/pkg/apis/dns/v1alpha1"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -192,6 +193,8 @@ func (b *Builder) Build(ctx context.Context, c client.Client) (*Shoot, error) {
 	}
 	shoot.Networks = networks
 
+	shoot.ResourceRefs = getResourceRefs(shootObject)
+
 	return shoot, nil
 }
 
@@ -200,7 +203,7 @@ func calculateExtensions(gardenClient client.Client, shoot *gardencorev1beta1.Sh
 	if err := gardenClient.List(context.TODO(), controllerRegistrations); err != nil {
 		return nil, err
 	}
-	return MergeExtensions(controllerRegistrations.Items, shoot.Spec.Extensions, seedNamespace)
+	return MergeExtensions(controllerRegistrations.Items, shoot.Spec.Extensions, getResourceRefs(shoot), seedNamespace)
 }
 
 // GetIngressFQDN returns the fully qualified domain name of ingress sub-resource for the Shoot cluster. The
@@ -418,7 +421,7 @@ const ExtensionDefaultTimeout = 3 * time.Minute
 // MergeExtensions merges the given controller registrations with the given extensions, expecting that each type in
 // extensions is also represented in the registration. It ignores all extensions that were explicitly disabled in the
 // shoot spec.
-func MergeExtensions(registrations []gardencorev1beta1.ControllerRegistration, extensions []gardencorev1beta1.Extension, namespace string) (map[string]Extension, error) {
+func MergeExtensions(registrations []gardencorev1beta1.ControllerRegistration, extensions []gardencorev1beta1.Extension, resourceRefs map[string]autoscalingv1.CrossVersionObjectReference, namespace string) (map[string]Extension, error) {
 	var (
 		typeToExtension    = make(map[string]Extension)
 		requiredExtensions = make(map[string]Extension)
@@ -468,6 +471,15 @@ func MergeExtensions(registrations []gardencorev1beta1.ControllerRegistration, e
 			if extension.ProviderConfig != nil {
 				providerConfig := extension.ProviderConfig.RawExtension
 				obj.Spec.ProviderConfig = &providerConfig
+			}
+
+			for _, name := range extension.ResourceNames {
+				if resourceRef, ok := resourceRefs[name]; ok {
+					obj.Spec.Resources = append(obj.Spec.Resources, gardencorev1beta1.NamedResourceReference{
+						Name:        name,
+						ResourceRef: resourceRef,
+					})
+				}
 			}
 
 			requiredExtensions[extension.Type] = obj
@@ -586,4 +598,13 @@ func ComputeRequiredExtensions(shoot *gardencorev1beta1.Shoot, seed *gardencorev
 	}
 
 	return requiredExtensions
+}
+
+// getResourceRefs returns resource references from the Shoot spec as map[string]autoscalingv1.CrossVersionObjectReference.
+func getResourceRefs(shoot *gardencorev1beta1.Shoot) map[string]autoscalingv1.CrossVersionObjectReference {
+	resourceRefs := make(map[string]autoscalingv1.CrossVersionObjectReference)
+	for _, r := range shoot.Spec.Resources {
+		resourceRefs[r.Name] = r.ResourceRef
+	}
+	return resourceRefs
 }

@@ -44,7 +44,8 @@ func validateSecretReference(ref corev1.SecretReference, fldPath *field.Path) fi
 	return allErrs
 }
 
-func validateCrossVersionObjectReference(ref autoscalingv1.CrossVersionObjectReference, fldPath *field.Path) field.ErrorList {
+// ValidateCrossVersionObjectReference validates the given autoscalingv1.CrossVersionObjectReference.
+func ValidateCrossVersionObjectReference(ref autoscalingv1.CrossVersionObjectReference, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if len(ref.Kind) == 0 {

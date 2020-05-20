@@ -15,6 +15,8 @@
 package validation
 
 import (
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	corevalidation "github.com/gardener/gardener/pkg/apis/core/validation"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -49,7 +51,19 @@ func ValidateExtensionSpec(spec *extensionsv1alpha1.ExtensionSpec, fldPath *fiel
 	if len(spec.Type) == 0 {
 		allErrs = append(allErrs, field.Required(fldPath.Child("type"), "field is required"))
 	}
+	allErrs = append(allErrs, validateResources(spec.Resources, fldPath.Child("resources"))...)
 
+	return allErrs
+}
+
+func validateResources(resources []gardencorev1beta1.NamedResourceReference, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	for i, resource := range resources {
+		if resource.Name == "" {
+			allErrs = append(allErrs, field.Required(fldPath.Index(i).Child("name"), "field must not be empty"))
+		}
+		allErrs = append(allErrs, corevalidation.ValidateCrossVersionObjectReference(resource.ResourceRef, fldPath.Index(i).Child("resourceRef"))...)
+	}
 	return allErrs
 }
 

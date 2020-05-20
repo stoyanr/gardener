@@ -27,6 +27,9 @@ type DefaultSpec struct {
 	// +optional
 
 	ProviderConfig *runtime.RawExtension `json:"providerConfig,omitempty"`
+	// Resources holds a list of named resource references that can be referred to in ProviderConfig by their names.
+	// +optional
+	Resources []gardencorev1beta1.NamedResourceReference `json:"resources,omitempty" protobuf:"bytes,15,rep,name=resources"`
 }
 
 // GetExtensionType implements Spec.
@@ -42,6 +45,11 @@ func (d *DefaultSpec) GetExtensionPurpose() *string {
 // GetProviderConfig implements Spec.
 func (d *DefaultSpec) GetProviderConfig() *runtime.RawExtension {
 	return d.ProviderConfig
+}
+
+// GetResources implements Spec.
+func (d *DefaultSpec) GetResources() []gardencorev1beta1.NamedResourceReference {
+	return d.Resources
 }
 
 // DefaultStatus contains common status fields for every extension resource.

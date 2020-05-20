@@ -51,6 +51,7 @@ func (b *Botanist) DeployExtensionResources(ctx context.Context) error {
 		var (
 			extensionType  = extension.Spec.Type
 			providerConfig = extension.Spec.ProviderConfig
+			resources      = extension.Spec.Resources
 			toApply        = extensionsv1alpha1.Extension{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      extension.Name,
@@ -65,6 +66,7 @@ func (b *Botanist) DeployExtensionResources(ctx context.Context) error {
 				metav1.SetMetaDataAnnotation(&toApply.ObjectMeta, v1beta1constants.GardenerTimestamp, time.Now().UTC().String())
 				toApply.Spec.Type = extensionType
 				toApply.Spec.ProviderConfig = providerConfig
+				toApply.Spec.Resources = resources
 				return nil
 			})
 

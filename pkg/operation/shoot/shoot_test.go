@@ -35,6 +35,7 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	"github.com/onsi/gomega/types"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -381,6 +382,17 @@ var _ = Describe("shoot", func() {
 					Raw: []byte("key: value"),
 				},
 			}
+			resourceRef = autoscalingv1.CrossVersionObjectReference{
+				Kind:       "Secret",
+				Name:       "test-secret",
+				APIVersion: "v1",
+			}
+			resources = []gardencorev1beta1.NamedResourceReference{
+				{
+					Name:        "test",
+					ResourceRef: resourceRef,
+				},
+			}
 			fooExtensionType         = "foo"
 			fooReconciliationTimeout = metav1.Duration{Duration: 5 * time.Minute}
 			fooRegistration          = gardencorev1beta1.ControllerRegistration{
@@ -397,6 +409,7 @@ var _ = Describe("shoot", func() {
 			fooExtension = gardencorev1beta1.Extension{
 				Type:           fooExtensionType,
 				ProviderConfig: &providerConfig,
+				ResourceNames:  []string{"test"},
 			}
 			barExtensionType = "bar"
 			barRegistration  = gardencorev1beta1.ControllerRegistration{
@@ -422,13 +435,13 @@ var _ = Describe("shoot", func() {
 		)
 
 		DescribeTable("#MergeExtensions",
-			func(registrations []gardencorev1beta1.ControllerRegistration, extensions []gardencorev1beta1.Extension, namespace string, conditionMatcher types.GomegaMatcher) {
-				ext, err := MergeExtensions(registrations, extensions, namespace)
+			func(registrations []gardencorev1beta1.ControllerRegistration, extensions []gardencorev1beta1.Extension, resourceRefs map[string]autoscalingv1.CrossVersionObjectReference, namespace string, conditionMatcher types.GomegaMatcher) {
+				ext, err := MergeExtensions(registrations, extensions, resourceRefs, namespace)
 				Expect(ext).To(conditionMatcher)
 				Expect(err).To(BeNil())
 			},
-			Entry("No extensions", nil, nil, shootNamespace, BeEmpty()),
-			Entry("Extension w/o registration", nil, []gardencorev1beta1.Extension{{Type: fooExtensionType}}, shootNamespace, BeEmpty()),
+			Entry("No extensions", nil, nil, nil, shootNamespace, BeEmpty()),
+			Entry("Extension w/o registration", nil, []gardencorev1beta1.Extension{{Type: fooExtensionType}}, nil, shootNamespace, BeEmpty()),
 			Entry("Extensions w/ registration",
 				[]gardencorev1beta1.ControllerRegistration{
 					fooRegistration,
@@ -436,16 +449,20 @@ var _ = Describe("shoot", func() {
 				[]gardencorev1beta1.Extension{
 					fooExtension,
 				},
+				map[string]autoscalingv1.CrossVersionObjectReference{
+					"test": resourceRef,
+				},
 				shootNamespace,
 				HaveKeyWithValue(
 					Equal(fooExtensionType),
 					MatchAllFields(
 						Fields{
 							"Extension": MatchFields(IgnoreExtras, Fields{
-								"Spec": MatchFields(IgnoreExtras, Fields{
+								"Spec": MatchAllFields(Fields{
 									"DefaultSpec": MatchAllFields(Fields{
 										"Type":           Equal(fooExtensionType),
 										"ProviderConfig": PointTo(Equal(providerConfig.RawExtension)),
+										"Resources":      Equal(resources),
 									}),
 								}),
 							}),
@@ -459,6 +476,7 @@ var _ = Describe("shoot", func() {
 					fooRegistration,
 				},
 				nil,
+				nil,
 				shootNamespace,
 				BeEmpty(),
 			),
@@ -466,6 +484,7 @@ var _ = Describe("shoot", func() {
 				[]gardencorev1beta1.ControllerRegistration{
 					barRegistration,
 				},
+				nil,
 				nil,
 				shootNamespace,
 				HaveKeyWithValue(
@@ -477,6 +496,7 @@ var _ = Describe("shoot", func() {
 									"DefaultSpec": MatchAllFields(Fields{
 										"Type":           Equal(barExtensionType),
 										"ProviderConfig": BeNil(),
+										"Resources":      BeNil(),
 									}),
 								}),
 							}),
@@ -492,6 +512,7 @@ var _ = Describe("shoot", func() {
 				[]gardencorev1beta1.Extension{
 					barExtensionDisabled,
 				},
+				nil,
 				shootNamespace,
 				BeEmpty(),
 			),
@@ -504,6 +525,7 @@ var _ = Describe("shoot", func() {
 					fooExtension,
 					barExtensionDisabled,
 				},
+				nil,
 				shootNamespace,
 				SatisfyAll(
 					HaveLen(1),
@@ -512,10 +534,11 @@ var _ = Describe("shoot", func() {
 						MatchAllFields(
 							Fields{
 								"Extension": MatchFields(IgnoreExtras, Fields{
-									"Spec": MatchFields(IgnoreExtras, Fields{
+									"Spec": MatchAllFields(Fields{
 										"DefaultSpec": MatchAllFields(Fields{
 											"Type":           Equal(fooExtensionType),
 											"ProviderConfig": PointTo(Equal(providerConfig.RawExtension)),
+											"Resources":      BeNil(),
 										}),
 									}),
 								}),
@@ -543,6 +566,7 @@ var _ = Describe("shoot", func() {
 				[]gardencorev1beta1.Extension{
 					barExtension,
 				},
+				nil,
 				shootNamespace,
 				HaveKeyWithValue(
 					Equal(barExtensionType),
@@ -553,6 +577,7 @@ var _ = Describe("shoot", func() {
 									"DefaultSpec": MatchAllFields(Fields{
 										"Type":           Equal(barExtensionType),
 										"ProviderConfig": PointTo(Equal(providerConfig.RawExtension)),
+										"Resources":      BeNil(),
 									}),
 								}),
 							}),
