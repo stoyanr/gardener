@@ -127,6 +127,11 @@ func (c *Controller) runReconcileShootFlow(o *operation.Operation) *gardencorev1
 				return taskIDs
 			}(),
 		})
+		deployReferencedResources = g.Add(flow.Task{
+			Name:         "Deploying referenced resources",
+			Fn:           flow.TaskFn(botanist.DeployReferencedResources).RetryUntilTimeout(defaultInterval, defaultTimeout),
+			Dependencies: flow.NewTaskIDs(deployNamespace),
+		})
 		deployInternalDomainDNSRecord = g.Add(flow.Task{
 			Name:         "Deploying internal domain DNS record",
 			Fn:           flow.TaskFn(botanist.DeployInternalDNS).DoIf(!o.Shoot.HibernationEnabled),
@@ -135,7 +140,7 @@ func (c *Controller) runReconcileShootFlow(o *operation.Operation) *gardencorev1
 		deployExternalDomainDNSRecord = g.Add(flow.Task{
 			Name:         "Deploying external domain",
 			Fn:           flow.TaskFn(botanist.DeployExternalDNS).DoIf(!o.Shoot.HibernationEnabled),
-			Dependencies: flow.NewTaskIDs(waitUntilKubeAPIServerServiceIsReady),
+			Dependencies: flow.NewTaskIDs(deployReferencedResources, waitUntilKubeAPIServerServiceIsReady),
 		})
 		deployInfrastructure = g.Add(flow.Task{
 			Name:         "Deploying Shoot infrastructure",
@@ -330,7 +335,7 @@ func (c *Controller) runReconcileShootFlow(o *operation.Operation) *gardencorev1
 		deployExtensionResources = g.Add(flow.Task{
 			Name:         "Deploying extension resources",
 			Fn:           flow.TaskFn(botanist.DeployExtensionResources).RetryUntilTimeout(defaultInterval, defaultTimeout),
-			Dependencies: flow.NewTaskIDs(initializeShootClients),
+			Dependencies: flow.NewTaskIDs(deployReferencedResources, initializeShootClients),
 		})
 		_ = g.Add(flow.Task{
 			Name:         "Waiting until extension resources are ready",

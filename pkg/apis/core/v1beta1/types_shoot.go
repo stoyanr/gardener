@@ -260,6 +260,9 @@ type Extension struct {
 	// Disabled allows to disable extensions that were marked as 'globally enabled' by Gardener administrators.
 	// +optional
 	Disabled *bool `json:"disabled,omitempty" protobuf:"varint,3,opt,name=disabled"`
+	// ResourceNames holds a list of resource reference names that are referred to in the ProviderConfig.
+	// +optional
+	ResourceNames []string `json:"resourceNames,omitempty" protobuf:"bytes,4,rep,name=resourceNames"`
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////

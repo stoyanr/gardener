@@ -1968,6 +1968,20 @@ k8s.io/apimachinery/pkg/runtime.RawExtension
 <td>
 </td>
 </tr>
+<tr>
+<td>
+<code>resources</code></br>
+<em>
+<a href="../core#core.gardener.cloud/v1alpha1.NamedResourceReference">
+[]github.com/gardener/gardener/pkg/apis/core/v1alpha1.NamedResourceReference
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Resources holds a list of named resource references that can be referred to in ProviderConfig by their names.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="extensions.gardener.cloud/v1alpha1.DefaultStatus">DefaultStatus

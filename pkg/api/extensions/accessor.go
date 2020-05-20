@@ -124,6 +124,25 @@ func (u unstructuredSpecAccessor) GetProviderConfig() *runtime.RawExtension {
 	return nestedRawExtension(u.UnstructuredContent(), "spec", "providerConfig")
 }
 
+// GetResources implements Spec.
+func (u unstructuredSpecAccessor) GetResources() []gardencorev1alpha1.NamedResourceReference {
+	val, ok, err := unstructured.NestedFieldNoCopy(u.UnstructuredContent(), "spec", "resources")
+	if err != nil || !ok {
+		return nil
+	}
+	var resources []gardencorev1alpha1.NamedResourceReference
+	interfaceResourceSlice := val.([]interface{})
+	for _, interfaceResource := range interfaceResourceSlice {
+		new := interfaceResource.(map[string]interface{})
+		resource := &gardencorev1alpha1.NamedResourceReference{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(new, resource); err != nil {
+			return nil
+		}
+		resources = append(resources, *resource)
+	}
+	return resources
+}
+
 // GetExtensionStatus implements Object.
 func (u unstructuredAccessor) GetExtensionStatus() extensionsv1alpha1.Status {
 	return unstructuredStatusAccessor(u)

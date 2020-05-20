@@ -2191,6 +2191,20 @@ func schema_pkg_apis_core_v1alpha1_Extension(ref common.ReferenceCallback) commo
 							Format:      "",
 						},
 					},
+					"resourceNames": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ResourceNames holds a list of resource reference names that are referred to in the ProviderConfig.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"type"},
 			},
@@ -7501,6 +7515,20 @@ func schema_pkg_apis_core_v1beta1_Extension(ref common.ReferenceCallback) common
 							Description: "Disabled allows to disable extensions that were marked as 'globally enabled' by Gardener administrators.",
 							Type:        []string{"boolean"},
 							Format:      "",
+						},
+					},
+					"resourceNames": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ResourceNames holds a list of resource reference names that are referred to in the ProviderConfig.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
 						},
 					},
 				},

@@ -112,6 +112,26 @@ var _ = Describe("Accessor", func() {
 					Expect(acc.GetProviderConfig()).To(BeNil())
 				})
 			})
+
+			Describe("#GetResources", func() {
+				It("should get the resources", func() {
+					var (
+						resources = []gardencorev1alpha1.NamedResourceReference{
+							{
+								Name: "test",
+								ResourceRef: autoscalingv1.CrossVersionObjectReference{
+									Kind:       "Secret",
+									Name:       "test-secret",
+									APIVersion: "v1",
+								},
+							},
+						}
+						acc = mkUnstructuredAccessorWithSpec(extensionsv1alpha1.DefaultSpec{Resources: resources})
+					)
+					getResources := acc.GetResources()
+					Expect(getResources).To(Equal(resources))
+				})
+			})
 		})
 
 		Context("#GetExtensionStatus", func() {

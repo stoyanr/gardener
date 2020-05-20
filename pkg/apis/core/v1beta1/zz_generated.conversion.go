@@ -2148,6 +2148,7 @@ func autoConvert_v1beta1_Extension_To_core_Extension(in *Extension, out *core.Ex
 	out.Type = in.Type
 	out.ProviderConfig = (*core.ProviderConfig)(unsafe.Pointer(in.ProviderConfig))
 	out.Disabled = (*bool)(unsafe.Pointer(in.Disabled))
+	out.ResourceNames = *(*[]string)(unsafe.Pointer(&in.ResourceNames))
 	return nil
 }
 
@@ -2160,6 +2161,7 @@ func autoConvert_core_Extension_To_v1beta1_Extension(in *core.Extension, out *Ex
 	out.Type = in.Type
 	out.ProviderConfig = (*ProviderConfig)(unsafe.Pointer(in.ProviderConfig))
 	out.Disabled = (*bool)(unsafe.Pointer(in.Disabled))
+	out.ResourceNames = *(*[]string)(unsafe.Pointer(&in.ResourceNames))
 	return nil
 }
 
