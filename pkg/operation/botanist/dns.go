@@ -66,7 +66,16 @@ func (b *Botanist) DeployExternalDNS(ctx context.Context) error {
 // the external DNSProvider and DNSEntry.
 func (b *Botanist) ExternalDNS() component.Deployer {
 	if b.NeedsExternalDNS() {
+		if b.isRestorePhase() {
+			return component.OpWaiter(
+				b.Shoot.Components.Extensions.DNS.ExternalOwner,
+				b.Shoot.Components.Extensions.DNS.ExternalProvider,
+				b.Shoot.Components.Extensions.DNS.ExternalEntry,
+			)
+		}
+
 		return component.OpWaiter(
+			b.Shoot.Components.Extensions.DNS.ExternalOwner,
 			b.Shoot.Components.Extensions.DNS.ExternalProvider,
 			b.Shoot.Components.Extensions.DNS.ExternalEntry,
 		)
@@ -75,6 +84,7 @@ func (b *Botanist) ExternalDNS() component.Deployer {
 	return component.OpWaiter(
 		b.Shoot.Components.Extensions.DNS.ExternalEntry,
 		b.Shoot.Components.Extensions.DNS.ExternalProvider,
+		b.Shoot.Components.Extensions.DNS.ExternalOwner,
 	)
 }
 
@@ -87,7 +97,16 @@ func (b *Botanist) DeployInternalDNS(ctx context.Context) error {
 // the internal DNSProvider and DNSEntry.
 func (b *Botanist) InternalDNS() component.Deployer {
 	if b.NeedsInternalDNS() {
+		if b.isRestorePhase() {
+			return component.OpWaiter(
+				b.Shoot.Components.Extensions.DNS.InternalOwner,
+				b.Shoot.Components.Extensions.DNS.InternalProvider,
+				b.Shoot.Components.Extensions.DNS.InternalEntry,
+			)
+		}
+
 		return component.OpWaiter(
+			b.Shoot.Components.Extensions.DNS.InternalOwner,
 			b.Shoot.Components.Extensions.DNS.InternalProvider,
 			b.Shoot.Components.Extensions.DNS.InternalEntry,
 		)
@@ -96,6 +115,7 @@ func (b *Botanist) InternalDNS() component.Deployer {
 	return component.OpWaiter(
 		b.Shoot.Components.Extensions.DNS.InternalEntry,
 		b.Shoot.Components.Extensions.DNS.InternalProvider,
+		b.Shoot.Components.Extensions.DNS.InternalOwner,
 	)
 }
 
@@ -156,6 +176,36 @@ func (b *Botanist) DefaultExternalDNSEntry(seedClient client.Client) component.D
 	))
 }
 
+// DefaultExternalDNSOwner returns the external DNSOwner if external DNS is
+// enabled and if not, DeployWaiter which removes the external DNSOwner
+func (b *Botanist) DefaultExternalDNSOwner(seedClient client.Client) component.DeployWaiter {
+	if b.NeedsExternalDNS() {
+		return dns.NewDNSOwner(
+			&dns.OwnerValues{
+				Name:    DNSExternalName,
+				Active:  true,
+				OwnerID: *b.Shoot.Info.Status.ClusterIdentity,
+			},
+			b.Shoot.SeedNamespace,
+			b.K8sSeedClient.ChartApplier(),
+			b.ChartsRootPath,
+			b.Logger,
+			seedClient,
+		)
+	}
+
+	return component.OpDestroy(dns.NewDNSOwner(
+		&dns.OwnerValues{
+			Name: DNSExternalName,
+		},
+		b.Shoot.SeedNamespace,
+		b.K8sSeedClient.ChartApplier(),
+		b.ChartsRootPath,
+		b.Logger,
+		seedClient,
+	))
+}
+
 // DefaultInternalDNSProvider returns the internal DNSProvider if internal DNS is
 // enabled and if not, DeployWaiter which removes the internal DNSProvider.
 func (b *Botanist) DefaultInternalDNSProvider(seedClient client.Client) component.DeployWaiter {
@@ -209,6 +259,35 @@ func (b *Botanist) DefaultInternalDNSEntry(seedClient client.Client) component.D
 		b.Logger,
 		seedClient,
 		nil,
+	))
+}
+
+// DefaultInternalDNSOwner returns DeployWaiter which removes the internal DNSOwner.
+func (b *Botanist) DefaultInternalDNSOwner(seedClient client.Client) component.DeployWaiter {
+	if b.NeedsInternalDNS() {
+		return dns.NewDNSOwner(
+			&dns.OwnerValues{
+				Name:    DNSInternalName,
+				Active:  true,
+				OwnerID: *b.Shoot.Info.Status.ClusterIdentity,
+			},
+			b.Shoot.SeedNamespace,
+			b.K8sSeedClient.ChartApplier(),
+			b.ChartsRootPath,
+			b.Logger,
+			seedClient,
+		)
+	}
+
+	return component.OpDestroy(dns.NewDNSOwner(
+		&dns.OwnerValues{
+			Name: DNSInternalName,
+		},
+		b.Shoot.SeedNamespace,
+		b.K8sSeedClient.ChartApplier(),
+		b.ChartsRootPath,
+		b.Logger,
+		seedClient,
 	))
 }
 
@@ -368,4 +447,24 @@ func (b *Botanist) DeleteDNSProviders(ctx context.Context) error {
 		5*time.Second,
 		client.InNamespace(b.Shoot.SeedNamespace),
 	)
+}
+
+// MigrateInternalDNS destroys the internal DNSEntry, DNSOwner and DNSProvider resources
+// from the cluster, without removing it from the DNS provider
+func (b *Botanist) MigrateInternalDNS(ctx context.Context) error {
+	return component.OpDestroy(
+		b.Shoot.Components.Extensions.DNS.InternalOwner,
+		b.Shoot.Components.Extensions.DNS.InternalProvider,
+		b.Shoot.Components.Extensions.DNS.InternalEntry,
+	).Destroy(ctx)
+}
+
+// MigrateExternalDNS destroys the external DNSEntry, DNSOwner and DNSProvider resources
+// from the cluster, without removing it from the DNS provider
+func (b *Botanist) MigrateExternalDNS(ctx context.Context) error {
+	return component.OpDestroy(
+		b.Shoot.Components.Extensions.DNS.ExternalOwner,
+		b.Shoot.Components.Extensions.DNS.ExternalProvider,
+		b.Shoot.Components.Extensions.DNS.ExternalEntry,
+	).Destroy(ctx)
 }

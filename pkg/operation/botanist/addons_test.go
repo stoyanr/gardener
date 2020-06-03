@@ -147,6 +147,7 @@ var _ = Describe("dns", func() {
 		})
 
 		It("sets an entry which creates DNSEntry", func() {
+			b.Shoot.Info.Status.ClusterIdentity = pointer.StringPtr("shoot-cluster-identity")
 			b.Shoot.DisableDNS = false
 			b.Shoot.Info.Spec.DNS = &v1beta1.DNS{Domain: pointer.StringPtr("foo")}
 			b.Shoot.ExternalClusterDomain = pointer.StringPtr("baz")

@@ -99,8 +99,10 @@ type Extensions struct {
 
 // DNS contains references to internal and external DNSProvider and DNSEntry deployers.
 type DNS struct {
+	ExternalOwner       component.DeployWaiter
 	ExternalProvider    component.DeployWaiter
 	ExternalEntry       component.DeployWaiter
+	InternalOwner       component.DeployWaiter
 	InternalProvider    component.DeployWaiter
 	InternalEntry       component.DeployWaiter
 	AdditionalProviders map[string]component.DeployWaiter
