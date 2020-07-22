@@ -262,7 +262,8 @@ func (b *Botanist) DefaultInternalDNSEntry(seedClient client.Client) component.D
 	))
 }
 
-// DefaultInternalDNSOwner returns DeployWaiter which removes the internal DNSOwner.
+// DefaultInternalDNSOwner returns the internal DNSOwner if internal DNS is
+// enabled and if not, DeployWaiter which removes the internal DNSOwner
 func (b *Botanist) DefaultInternalDNSOwner(seedClient client.Client) component.DeployWaiter {
 	if b.NeedsInternalDNS() {
 		return dns.NewDNSOwner(

@@ -65,7 +65,7 @@ type dnsOwner struct {
 	client    crclient.Client
 }
 
-//Deploy implements Deployer and creates DNSOwner for the provided values
+// Deploy implements Deployer and creates DNSOwner for the provided values
 func (d *dnsOwner) Deploy(ctx context.Context) error {
 	return d.Apply(ctx, d.chartPath, d.shootNamespace, d.values.Name, kubernetes.Values(d.values))
 }
@@ -83,7 +83,7 @@ func (d *dnsOwner) WaitCleanup(ctx context.Context) error {
 // Wait implements Waiter, not applicable for the DNSOwner
 func (d *dnsOwner) Wait(ctx context.Context) error { return nil }
 
-// entry returns an empty DNSEntry used for deletion.
+// owner returns an empty DNSOwner used for deletion.
 func (d *dnsOwner) owner() *dnsv1alpha1.DNSOwner {
 	return &dnsv1alpha1.DNSOwner{ObjectMeta: metav1.ObjectMeta{Name: d.values.Name, Namespace: d.shootNamespace}}
 }
