@@ -67,15 +67,15 @@ func (b *Botanist) DeployExternalDNS(ctx context.Context) error {
 func (b *Botanist) ExternalDNS() component.Deployer {
 	if b.NeedsExternalDNS() {
 		if b.isRestorePhase() {
-			return component.OpWaiter(
-				b.Shoot.Components.Extensions.DNS.ExternalOwner,
-				b.Shoot.Components.Extensions.DNS.ExternalProvider,
-				b.Shoot.Components.Extensions.DNS.ExternalEntry,
-			)
+			return dnsRestoreDeployer{
+				provider: b.Shoot.Components.Extensions.DNS.ExternalProvider,
+				entry:    b.Shoot.Components.Extensions.DNS.ExternalEntry,
+				owner:    b.Shoot.Components.Extensions.DNS.Owner,
+			}
 		}
 
 		return component.OpWaiter(
-			b.Shoot.Components.Extensions.DNS.ExternalOwner,
+			b.Shoot.Components.Extensions.DNS.Owner,
 			b.Shoot.Components.Extensions.DNS.ExternalProvider,
 			b.Shoot.Components.Extensions.DNS.ExternalEntry,
 		)
@@ -84,7 +84,7 @@ func (b *Botanist) ExternalDNS() component.Deployer {
 	return component.OpWaiter(
 		b.Shoot.Components.Extensions.DNS.ExternalEntry,
 		b.Shoot.Components.Extensions.DNS.ExternalProvider,
-		b.Shoot.Components.Extensions.DNS.ExternalOwner,
+		b.Shoot.Components.Extensions.DNS.Owner,
 	)
 }
 
@@ -98,15 +98,15 @@ func (b *Botanist) DeployInternalDNS(ctx context.Context) error {
 func (b *Botanist) InternalDNS() component.Deployer {
 	if b.NeedsInternalDNS() {
 		if b.isRestorePhase() {
-			return component.OpWaiter(
-				b.Shoot.Components.Extensions.DNS.InternalOwner,
-				b.Shoot.Components.Extensions.DNS.InternalProvider,
-				b.Shoot.Components.Extensions.DNS.InternalEntry,
-			)
+			return dnsRestoreDeployer{
+				provider: b.Shoot.Components.Extensions.DNS.InternalProvider,
+				entry:    b.Shoot.Components.Extensions.DNS.InternalEntry,
+				owner:    b.Shoot.Components.Extensions.DNS.Owner,
+			}
 		}
 
 		return component.OpWaiter(
-			b.Shoot.Components.Extensions.DNS.InternalOwner,
+			b.Shoot.Components.Extensions.DNS.Owner,
 			b.Shoot.Components.Extensions.DNS.InternalProvider,
 			b.Shoot.Components.Extensions.DNS.InternalEntry,
 		)
@@ -115,7 +115,7 @@ func (b *Botanist) InternalDNS() component.Deployer {
 	return component.OpWaiter(
 		b.Shoot.Components.Extensions.DNS.InternalEntry,
 		b.Shoot.Components.Extensions.DNS.InternalProvider,
-		b.Shoot.Components.Extensions.DNS.InternalOwner,
+		b.Shoot.Components.Extensions.DNS.Owner,
 	)
 }
 
@@ -176,28 +176,10 @@ func (b *Botanist) DefaultExternalDNSEntry(seedClient client.Client) component.D
 	))
 }
 
-// DefaultExternalDNSOwner returns the external DNSOwner if external DNS is
-// enabled and if not, DeployWaiter which removes the external DNSOwner
-func (b *Botanist) DefaultExternalDNSOwner(seedClient client.Client) component.DeployWaiter {
-	if b.NeedsExternalDNS() {
-		return dns.NewDNSOwner(
-			&dns.OwnerValues{
-				Name:    DNSExternalName,
-				Active:  true,
-				OwnerID: *b.Shoot.Info.Status.ClusterIdentity,
-			},
-			b.Shoot.SeedNamespace,
-			b.K8sSeedClient.ChartApplier(),
-			b.ChartsRootPath,
-			b.Logger,
-			seedClient,
-		)
-	}
-
+// DefaultDNSOwner returns DeployWaiter which removes the DNSOwner.
+func (b *Botanist) DefaultDNSOwner(seedClient client.Client) component.DeployWaiter {
 	return component.OpDestroy(dns.NewDNSOwner(
-		&dns.OwnerValues{
-			Name: DNSExternalName,
-		},
+		&dns.OwnerValues{},
 		b.Shoot.SeedNamespace,
 		b.K8sSeedClient.ChartApplier(),
 		b.ChartsRootPath,
@@ -259,36 +241,6 @@ func (b *Botanist) DefaultInternalDNSEntry(seedClient client.Client) component.D
 		b.Logger,
 		seedClient,
 		nil,
-	))
-}
-
-// DefaultInternalDNSOwner returns the internal DNSOwner if internal DNS is
-// enabled and if not, DeployWaiter which removes the internal DNSOwner
-func (b *Botanist) DefaultInternalDNSOwner(seedClient client.Client) component.DeployWaiter {
-	if b.NeedsInternalDNS() {
-		return dns.NewDNSOwner(
-			&dns.OwnerValues{
-				Name:    DNSInternalName,
-				Active:  true,
-				OwnerID: *b.Shoot.Info.Status.ClusterIdentity,
-			},
-			b.Shoot.SeedNamespace,
-			b.K8sSeedClient.ChartApplier(),
-			b.ChartsRootPath,
-			b.Logger,
-			seedClient,
-		)
-	}
-
-	return component.OpDestroy(dns.NewDNSOwner(
-		&dns.OwnerValues{
-			Name: DNSInternalName,
-		},
-		b.Shoot.SeedNamespace,
-		b.K8sSeedClient.ChartApplier(),
-		b.ChartsRootPath,
-		b.Logger,
-		seedClient,
 	))
 }
 
@@ -454,7 +406,7 @@ func (b *Botanist) DeleteDNSProviders(ctx context.Context) error {
 // from the cluster, without removing it from the DNS provider
 func (b *Botanist) MigrateInternalDNS(ctx context.Context) error {
 	return component.OpDestroy(
-		b.Shoot.Components.Extensions.DNS.InternalOwner,
+		b.Shoot.Components.Extensions.DNS.Owner,
 		b.Shoot.Components.Extensions.DNS.InternalProvider,
 		b.Shoot.Components.Extensions.DNS.InternalEntry,
 	).Destroy(ctx)
@@ -464,8 +416,54 @@ func (b *Botanist) MigrateInternalDNS(ctx context.Context) error {
 // from the cluster, without removing it from the DNS provider
 func (b *Botanist) MigrateExternalDNS(ctx context.Context) error {
 	return component.OpDestroy(
-		b.Shoot.Components.Extensions.DNS.ExternalOwner,
+		b.Shoot.Components.Extensions.DNS.Owner,
 		b.Shoot.Components.Extensions.DNS.ExternalProvider,
 		b.Shoot.Components.Extensions.DNS.ExternalEntry,
 	).Destroy(ctx)
+}
+
+// dnsRestoreDeployer implements special deploy logic for DNS providers, entries, and owners to be executed only
+// during the restore phase.
+type dnsRestoreDeployer struct {
+	provider component.DeployWaiter
+	entry    component.DeployWaiter
+	owner    component.DeployWaiter
+}
+
+func (d dnsRestoreDeployer) Deploy(ctx context.Context) error {
+	// Deploy the provider and wait for it to become ready
+	if err := d.provider.Deploy(ctx); err != nil {
+		return err
+	}
+	if err := d.provider.Wait(ctx); err != nil {
+		return err
+	}
+
+	// Deploy the entry and wait for it to be reconciled, but ignore any errors due to Invalid or Error status
+	// This is done in order to ensure that the entry exists and has been reconciled before the owner is reconciled
+	if err := d.entry.Deploy(ctx); err != nil {
+		return err
+	}
+	if err := d.entry.Wait(ctx); err != nil && !strings.Contains(err.Error(), "status=") {
+		return err
+	}
+
+	// Deploy the owner and wait for it to become ready
+	if err := d.owner.Deploy(ctx); err != nil {
+		return err
+	}
+	if err := d.owner.Wait(ctx); err != nil {
+		return err
+	}
+
+	// Wait for the entry to become ready
+	if err := d.entry.Wait(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d dnsRestoreDeployer) Destroy(ctx context.Context) error {
+	return nil
 }

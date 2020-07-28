@@ -1398,6 +1398,20 @@ func (b *Botanist) setAPIServerServiceClusterIP(clusterIP string) {
 func (b *Botanist) setAPIServerAddress(address string) {
 	b.Operation.APIServerAddress = address
 
+	if b.NeedsInternalDNS() || b.NeedsExternalDNS() {
+		b.Shoot.Components.Extensions.DNS.Owner = dns.NewDNSOwner(
+			&dns.OwnerValues{
+				Active:  true,
+				OwnerID: *b.Shoot.Info.Status.ClusterIdentity,
+			},
+			b.Shoot.SeedNamespace,
+			b.K8sSeedClient.ChartApplier(),
+			b.ChartsRootPath,
+			b.Logger,
+			b.K8sSeedClient.DirectClient(),
+		)
+	}
+
 	if b.NeedsInternalDNS() {
 		b.Shoot.Components.Extensions.DNS.InternalEntry = dns.NewDNSEntry(
 			&dns.EntryValues{
