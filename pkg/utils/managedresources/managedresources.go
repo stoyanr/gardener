@@ -23,8 +23,10 @@ import (
 	resourcesv1alpha1 "github.com/gardener/gardener-resource-manager/pkg/apis/resources/v1alpha1"
 	"github.com/gardener/gardener-resource-manager/pkg/manager"
 	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8sretry "k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -98,4 +100,24 @@ func WaitUntilManagedResourceDeleted(ctx context.Context, client client.Client, 
 		},
 	}
 	return kutil.WaitUntilResourceDeleted(ctx, client, mr, 2*time.Second)
+}
+
+// KeepManagedResourceObjects updates the keepObjects field of the managed resource with the given name in the given namespace.
+func KeepManagedResourceObjects(ctx context.Context, c client.Client, namespace, name string, keepObjects bool) error {
+	resource := &resourcesv1alpha1.ManagedResource{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, resource); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return errors.Wrapf(err,"could not get managed resource '%s/%s'", namespace, name)
+	}
+
+	if err := kutil.TryUpdate(ctx, k8sretry.DefaultBackoff, c, resource, func() error {
+		resource.Spec.KeepObjects = &keepObjects
+		return nil
+	}); client.IgnoreNotFound(err) != nil {
+		return errors.Wrapf(err,"could not update managed resource '%s/%s'", namespace, name)
+	}
+	
+	return nil
 }
