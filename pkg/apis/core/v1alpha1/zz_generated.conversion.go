@@ -1777,6 +1777,7 @@ func autoConvert_v1alpha1_BackupEntryStatus_To_core_BackupEntryStatus(in *Backup
 	out.LastOperation = (*core.LastOperation)(unsafe.Pointer(in.LastOperation))
 	out.LastError = (*core.LastError)(unsafe.Pointer(in.LastError))
 	out.ObservedGeneration = in.ObservedGeneration
+	out.SeedName = (*string)(unsafe.Pointer(in.SeedName))
 	return nil
 }
 
@@ -1789,6 +1790,7 @@ func autoConvert_core_BackupEntryStatus_To_v1alpha1_BackupEntryStatus(in *core.B
 	out.LastOperation = (*LastOperation)(unsafe.Pointer(in.LastOperation))
 	out.LastError = (*LastError)(unsafe.Pointer(in.LastError))
 	out.ObservedGeneration = in.ObservedGeneration
+	out.SeedName = (*string)(unsafe.Pointer(in.SeedName))
 	return nil
 }
 
