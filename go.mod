@@ -1,4 +1,4 @@
-module github.com/gardener/gardener
+module github.com/stoyanr/gardener
 
 go 1.16
 
