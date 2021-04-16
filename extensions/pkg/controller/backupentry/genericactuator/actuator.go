@@ -16,6 +16,7 @@ package genericactuator
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -28,6 +29,10 @@ import (
 	"github.com/gardener/gardener/extensions/pkg/controller/backupentry"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+)
+
+const (
+	AnnotationSource = "backupentry.gardener.cloud/source"
 )
 
 type actuator struct {
@@ -89,9 +94,14 @@ func (a *actuator) deployEtcdBackupSecret(ctx context.Context, be *extensionsv1a
 		return err
 	}
 
+	backupBucketName := BackupSecretName
+	if be.Annotations[AnnotationSource] == "true" {
+		backupBucketName = fmt.Sprintf("%s-%s", "source", BackupSecretName)
+	}
+
 	etcdSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      BackupSecretName,
+			Name:      backupBucketName,
 			Namespace: shootTechnicalID,
 		},
 	}
