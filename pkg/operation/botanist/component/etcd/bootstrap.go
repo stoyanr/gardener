@@ -31,6 +31,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
+	coordination "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -124,6 +125,11 @@ func (b *bootstrapper) Deploy(ctx context.Context) error {
 					Verbs:     []string{"get", "list", "patch", "update", "watch", "create", "delete"},
 				},
 				{
+					APIGroups: []string{coordination.GroupName},
+					Resources: []string{"leases"},
+					Verbs:     []string{"get", "list", "patch", "update", "watch", "create", "delete"},
+				},
+				{
 					APIGroups: []string{druidv1alpha1.GroupVersion.Group},
 					Resources: []string{"etcds"},
 					Verbs:     []string{"get", "list", "watch", "update", "patch"},
@@ -213,7 +219,7 @@ func (b *bootstrapper) Deploy(ctx context.Context) error {
 							{
 								Name:            Druid,
 								Image:           b.image,
-								ImagePullPolicy: corev1.PullIfNotPresent,
+								ImagePullPolicy: corev1.PullAlways,
 								Command: []string{
 									"/bin/etcd-druid",
 									"--enable-leader-election=true",
