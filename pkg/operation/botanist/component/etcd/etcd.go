@@ -110,6 +110,8 @@ type Etcd interface {
 	SetSecrets(Secrets)
 	// SetBackupConfig sets the backup configuration.
 	SetBackupConfig(config *BackupConfig)
+	// SetSourceBackupConfig sets the source backup configuration.
+	SetSourceBackupConfig(config *BackupConfig)
 	// SetHVPAConfig sets the HVPA configuration.
 	SetHVPAConfig(config *HVPAConfig)
 }
@@ -132,6 +134,10 @@ func New(
 		retainReplicas:          retainReplicas,
 		storageCapacity:         storageCapacity,
 		defragmentationSchedule: defragmentationSchedule,
+
+		waitInterval:        5 * time.Second,
+		waitSevereThreshold: 3 * time.Minute,
+		waitTimeout:         5 * time.Minute,
 	}
 }
 
@@ -144,9 +150,14 @@ type etcd struct {
 	storageCapacity         string
 	defragmentationSchedule *string
 
-	secrets      Secrets
-	backupConfig *BackupConfig
-	hvpaConfig   *HVPAConfig
+	secrets            Secrets
+	backupConfig       *BackupConfig
+	sourceBackupConfig *BackupConfig
+	hvpaConfig         *HVPAConfig
+
+	waitInterval        time.Duration
+	waitSevereThreshold time.Duration
+	waitTimeout         time.Duration
 }
 
 func (e *etcd) Deploy(ctx context.Context) error {
@@ -336,11 +347,21 @@ func (e *etcd) Deploy(ctx context.Context) error {
 				SecretRef: &corev1.SecretReference{Name: e.backupConfig.SecretRefName},
 				Container: &e.backupConfig.Container,
 				Provider:  &provider,
-				Prefix:    fmt.Sprintf("%s/etcd-%s", e.backupConfig.Prefix, e.role),
+				Prefix:    fmt.Sprintf("%s/etcd-%s", e.backupConfig.Prefix, v1beta1constants.ETCDRoleMain),
 			}
 			etcd.Spec.Backup.FullSnapshotSchedule = e.computeFullSnapshotSchedule(foundEtcd, existingEtcd)
 			etcd.Spec.Backup.DeltaSnapshotPeriod = &deltaSnapshotPeriod
 			etcd.Spec.Backup.DeltaSnapshotMemoryLimit = &deltaSnapshotMemoryLimit
+		}
+
+		if e.sourceBackupConfig != nil {
+			provider := druidv1alpha1.StorageProvider(e.sourceBackupConfig.Provider)
+			etcd.Spec.Backup.SourceStore = &druidv1alpha1.StoreSpec{
+				SecretRef: &corev1.SecretReference{Name: e.sourceBackupConfig.SecretRefName},
+				Container: &e.sourceBackupConfig.Container,
+				Provider:  &provider,
+				Prefix:    fmt.Sprintf("%s/etcd-%s", e.sourceBackupConfig.Prefix, v1beta1constants.ETCDRoleMain),
+			}
 		}
 
 		etcd.Spec.StorageCapacity = &storageCapacity
@@ -581,9 +602,10 @@ func (e *etcd) ServiceDNSNames() []string {
 	)
 }
 
-func (e *etcd) SetSecrets(secrets Secrets)                 { e.secrets = secrets }
-func (e *etcd) SetBackupConfig(backupConfig *BackupConfig) { e.backupConfig = backupConfig }
-func (e *etcd) SetHVPAConfig(hvpaConfig *HVPAConfig)       { e.hvpaConfig = hvpaConfig }
+func (e *etcd) SetSecrets(secrets Secrets)                       { e.secrets = secrets }
+func (e *etcd) SetBackupConfig(backupConfig *BackupConfig)       { e.backupConfig = backupConfig }
+func (e *etcd) SetSourceBackupConfig(backupConfig *BackupConfig) { e.sourceBackupConfig = backupConfig }
+func (e *etcd) SetHVPAConfig(hvpaConfig *HVPAConfig)             { e.hvpaConfig = hvpaConfig }
 
 func (e *etcd) podLabelSelector() labels.Selector {
 	app, _ := labels.NewRequirement(v1beta1constants.LabelApp, selection.Equals, []string{LabelAppValue})

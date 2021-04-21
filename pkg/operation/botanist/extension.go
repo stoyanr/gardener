@@ -55,7 +55,7 @@ func (b *Botanist) DefaultExtension(ctx context.Context, seedClient client.Clien
 // DeployExtensions deploys the Extension custom resources and triggers the restore operation in case
 // the Shoot is in the restore phase of the control plane migration.
 func (b *Botanist) DeployExtensions(ctx context.Context) error {
-	if b.isRestorePhase() {
+	if b.IsRestorePhase() {
 		return b.Shoot.Components.Extensions.Extension.Restore(ctx, b.ShootState)
 	}
 	return b.Shoot.Components.Extensions.Extension.Deploy(ctx)

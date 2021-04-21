@@ -83,17 +83,19 @@ type Shoot struct {
 
 // Components contains different components deployed in the Shoot cluster.
 type Components struct {
-	BackupEntry      component.DeployWaiter
-	ClusterIdentity  component.Deployer
-	Extensions       *Extensions
-	ControlPlane     *ControlPlane
-	SystemComponents *SystemComponents
+	BackupEntry       component.DeployWaiter
+	SourceBackupEntry component.DeployWaiter
+	ClusterIdentity   component.Deployer
+	Extensions        *Extensions
+	ControlPlane      *ControlPlane
+	SystemComponents  *SystemComponents
 }
 
 // ControlPlane contains references to K8S control plane components.
 type ControlPlane struct {
 	EtcdMain              etcd.Etcd
 	EtcdEvents            etcd.Etcd
+	EtcdForCopy           etcd.Etcd
 	KubeAPIServerService  component.DeployWaiter
 	KubeAPIServerSNI      component.DeployWaiter
 	KubeAPIServerSNIPhase component.Phase

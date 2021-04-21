@@ -406,6 +406,10 @@ func (c *Controller) reconcileShoot(ctx context.Context, logger *logrus.Entry, g
 		reconcileAllowed                           = !failedOrIgnored && ((!reconcileInMaintenanceOnly && !confineSpecUpdateRollout(shoot.Spec.Maintenance)) || !isUpToDate || (isNowInEffectiveShootMaintenanceTimeWindow && !alreadyReconciledDuringThisTimeWindow))
 	)
 
+	if operationType == gardencorev1beta1.LastOperationTypeMigrate {
+		return reconcile.Result{}, fmt.Errorf("operation %s is not allowed during Shoot reconciliation", operationType)
+	}
+
 	if !controllerutil.ContainsFinalizer(shoot, gardencorev1beta1.GardenerName) {
 		if err := controllerutils.PatchAddFinalizers(ctx, gardenClient.Client(), shoot.DeepCopy(), gardencorev1beta1.GardenerName); err != nil {
 			return reconcile.Result{}, fmt.Errorf("could not add finalizer to Shoot: %s", err.Error())

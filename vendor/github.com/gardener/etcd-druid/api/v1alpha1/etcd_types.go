@@ -75,6 +75,9 @@ type BackupSpec struct {
 	// Image defines the etcd container image and tag
 	// +optional
 	Image *string `json:"image,omitempty"`
+	// SourceStore defines the specification of object store provider for storing backups.
+	// +optional
+	SourceStore *StoreSpec `json:"sourceStore,omitempty"`
 	// Store defines the specification of object store provider for storing backups.
 	// +optional
 	Store *StoreSpec `json:"store,omitempty"`

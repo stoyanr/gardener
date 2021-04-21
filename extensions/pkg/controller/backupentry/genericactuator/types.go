@@ -23,6 +23,8 @@ import (
 const (
 	// BackupSecretName is the name of secret having credentials for etcd backups.
 	BackupSecretName string = "etcd-backup"
+	//SourceBackupSecretName is the name of the secret having credentials for the source etcd backups used in the copy operation
+	SourceBackupSecretName string = "source-etcd-backup"
 	// DataKeyBackupBucketName is the name of a data key whose value contains the backup bucket name.
 	DataKeyBackupBucketName string = "bucketName"
 )

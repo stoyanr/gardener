@@ -113,6 +113,7 @@ func New(ctx context.Context, o *operation.Operation) (*Botanist, error) {
 	if err != nil {
 		return nil, err
 	}
+	o.Shoot.Components.ControlPlane.EtcdForCopy = b.EtcdForCopy(v1beta1constants.ETCDRoleMain, etcd.ClassImportant)
 	o.Shoot.Components.ControlPlane.KubeAPIServerService = b.DefaultKubeAPIServerService(sniPhase)
 	o.Shoot.Components.ControlPlane.KubeAPIServerSNI = b.DefaultKubeAPIServerSNI()
 	o.Shoot.Components.ControlPlane.KubeAPIServerSNIPhase = sniPhase
@@ -146,6 +147,7 @@ func New(ctx context.Context, o *operation.Operation) (*Botanist, error) {
 
 	// other components
 	o.Shoot.Components.BackupEntry = b.DefaultCoreBackupEntry(b.K8sGardenClient.DirectClient())
+	o.Shoot.Components.SourceBackupEntry = b.SourceCoreBackupEntry(b.K8sGardenClient.DirectClient())
 	o.Shoot.Components.ClusterIdentity = clusteridentity.New(o.Shoot.Info.Status.ClusterIdentity, o.GardenClusterIdentity, o.Shoot.Info.Name, o.Shoot.Info.Namespace, o.Shoot.SeedNamespace, string(o.Shoot.Info.Status.UID), b.K8sGardenClient.DirectClient(), b.K8sSeedClient.DirectClient(), b.Logger)
 
 	return b, nil

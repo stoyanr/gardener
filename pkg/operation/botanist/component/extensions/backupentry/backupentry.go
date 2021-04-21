@@ -70,6 +70,8 @@ type Values struct {
 	BucketName string
 	// BackupBucketProviderStatus is the optional provider status of the BackupBucket.
 	BackupBucketProviderStatus *runtime.RawExtension
+	// IsSource indicates whether this backupentry is used as a source during copy of ETCD Backups.
+	IsSource bool
 }
 
 // New creates a new instance of Interface.
@@ -109,6 +111,9 @@ func (b *backupEntry) Deploy(ctx context.Context) error {
 	}
 
 	_, err := controllerutil.CreateOrUpdate(ctx, b.client, backupEntry, func() error {
+		if b.values.IsSource {
+			metav1.SetMetaDataAnnotation(&backupEntry.ObjectMeta, "backupentry.gardener.cloud/source", "true")
+		}
 		metav1.SetMetaDataAnnotation(&backupEntry.ObjectMeta, v1beta1constants.GardenerOperation, v1beta1constants.GardenerOperationReconcile)
 		metav1.SetMetaDataAnnotation(&backupEntry.ObjectMeta, v1beta1constants.GardenerTimestamp, TimeNow().UTC().String())
 
