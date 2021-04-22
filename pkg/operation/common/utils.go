@@ -45,6 +45,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const SourcePrefix = "source-"
+
 // GetSecretKeysWithPrefix returns a list of keys of the given map <m> which are prefixed with <kind>.
 func GetSecretKeysWithPrefix(kind string, m map[string]*corev1.Secret) []string {
 	var result []string
@@ -114,6 +116,7 @@ func GenerateBackupEntryName(seedNamespace string, shootUID types.UID) string {
 
 // ExtractShootDetailsFromBackupEntryName returns Shoot resource technicalID its UID from provided <backupEntryName>.
 func ExtractShootDetailsFromBackupEntryName(backupEntryName string) (shootTechnicalID, shootUID string) {
+	backupEntryName = strings.TrimPrefix(backupEntryName, SourcePrefix)
 	tokens := strings.Split(backupEntryName, "--")
 	shootUID = tokens[len(tokens)-1]
 	shootTechnicalID = strings.TrimSuffix(backupEntryName, shootUID)
