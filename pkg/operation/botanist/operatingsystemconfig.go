@@ -89,7 +89,7 @@ func (b *Botanist) DeployOperatingSystemConfig(ctx context.Context) error {
 	b.Shoot.Components.Extensions.OperatingSystemConfig.SetKubeletCACertificate(string(b.Secrets[v1beta1constants.SecretNameCAKubelet].Data[secrets.DataKeyCertificateCA]))
 	b.Shoot.Components.Extensions.OperatingSystemConfig.SetSSHPublicKey(string(b.Secrets[v1beta1constants.SecretNameSSHKeyPair].Data[secrets.DataKeySSHAuthorizedKeys]))
 
-	if b.isRestorePhase() {
+	if b.IsRestorePhase() {
 		return b.Shoot.Components.Extensions.OperatingSystemConfig.Restore(ctx, b.ShootState)
 	}
 

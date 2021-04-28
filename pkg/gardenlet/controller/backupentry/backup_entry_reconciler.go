@@ -41,6 +41,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -88,9 +89,12 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 func (r *reconciler) reconcileBackupEntry(ctx context.Context, gardenClient kubernetes.Interface, backupEntry *gardencorev1beta1.BackupEntry) (reconcile.Result, error) {
 	backupEntryLogger := logger.NewFieldLogger(logger.Logger, "backupentry", backupEntry.Name)
 
-	if err := controllerutils.PatchAddFinalizers(ctx, gardenClient.Client(), backupEntry, gardencorev1beta1.GardenerName); err != nil {
-		backupEntryLogger.Errorf("Failed to ensure gardener finalizer on backupentry: %+v", err)
-		return reconcile.Result{}, err
+	if !controllerutil.ContainsFinalizer(backupEntry, gardencorev1beta1.GardenerName) {
+		if err := controllerutils.PatchAddFinalizers(ctx, gardenClient.Client(), backupEntry, gardencorev1beta1.GardenerName); err != nil {
+			backupEntryLogger.Errorf("Failed to ensure gardener finalizer on backupentry: %+v", err)
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{}, nil
 	}
 
 	if updateErr := r.updateBackupEntryStatusProcessing(ctx, gardenClient.DirectClient(), backupEntry, "Reconciliation of Backup Entry state in progress.", 2); updateErr != nil {

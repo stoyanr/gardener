@@ -71,6 +71,70 @@ func (b *Botanist) DefaultEtcd(role string, class etcd.Class) (etcd.Etcd, error)
 	return e, nil
 }
 
+func (b *Botanist) EtcdForCopy(role string, class etcd.Class) etcd.Etcd {
+	e := NewEtcd(
+		b.K8sSeedClient.Client(),
+		b.Shoot.SeedNamespace,
+		role,
+		class,
+		b.Shoot.HibernationEnabled,
+		b.Seed.GetValidVolumeSize("10Gi"),
+		nil,
+	)
+	return e
+}
+
+func (b *Botanist) DeployEtcdForCopy(ctx context.Context) error {
+	secrets := etcd.Secrets{
+		CA:     component.Secret{Name: etcd.SecretNameCA, Checksum: b.CheckSums[etcd.SecretNameCA]},
+		Server: component.Secret{Name: etcd.SecretNameServer, Checksum: b.CheckSums[etcd.SecretNameServer]},
+		Client: component.Secret{Name: etcd.SecretNameClient, Checksum: b.CheckSums[etcd.SecretNameClient]},
+	}
+
+	b.Shoot.Components.ControlPlane.EtcdForCopy.SetSecrets(secrets)
+
+	if b.Seed.Info.Spec.Backup != nil {
+		secret := &corev1.Secret{}
+		if err := b.K8sSeedClient.Client().Get(ctx, kutil.Key(b.Shoot.SeedNamespace, genericactuator.BackupSecretName), secret); err != nil {
+			return err
+		}
+
+		sourceSecret := &corev1.Secret{}
+		if err := b.K8sSeedClient.Client().Get(ctx, kutil.Key(b.Shoot.SeedNamespace, genericactuator.SourceBackupSecretName), sourceSecret); err != nil {
+			return err
+		}
+
+		b.Shoot.Components.ControlPlane.EtcdForCopy.SetBackupConfig(&etcd.BackupConfig{
+			Provider:      b.Seed.Info.Spec.Backup.Provider,
+			SecretRefName: genericactuator.BackupSecretName,
+			Prefix:        common.GenerateBackupEntryName(b.Shoot.Info.Status.TechnicalID, b.Shoot.Info.Status.UID),
+			Container:     string(secret.Data[genericactuator.DataKeyBackupBucketName]),
+		})
+
+		b.Shoot.Components.ControlPlane.EtcdForCopy.SetSourceBackupConfig(&etcd.BackupConfig{
+			Provider:      b.Seed.Info.Spec.Backup.Provider, //TODO: figure out how we can find out the source provider here.
+			SecretRefName: genericactuator.SourceBackupSecretName,
+			Prefix:        common.GenerateBackupEntryName(b.Shoot.Info.Status.TechnicalID, b.Shoot.Info.Status.UID),
+			Container:     string(sourceSecret.Data[genericactuator.DataKeyBackupBucketName]),
+		})
+	}
+
+	return b.Shoot.Components.ControlPlane.EtcdForCopy.Deploy(ctx)
+}
+
+// WaitUntilEtcdsReady waits until both etcd-main and etcd-events are ready.
+func (b *Botanist) WaitUntilEtcdForCopyReady(ctx context.Context) error {
+	return b.Shoot.Components.ControlPlane.EtcdForCopy.Wait(ctx)
+}
+
+func (b *Botanist) DestroyEtcdForCopy(ctx context.Context) error {
+	return b.Shoot.Components.ControlPlane.EtcdForCopy.Destroy(ctx)
+}
+
+func (b *Botanist) WaitUntilEtcdForCopyDestroyed(ctx context.Context) error {
+	return b.Shoot.Components.ControlPlane.EtcdForCopy.WaitCleanup(ctx)
+}
+
 // DeployEtcd deploys the etcd main and events.
 func (b *Botanist) DeployEtcd(ctx context.Context) error {
 	secrets := etcd.Secrets{

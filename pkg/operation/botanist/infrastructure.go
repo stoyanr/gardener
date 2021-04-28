@@ -36,7 +36,7 @@ func (b *Botanist) DefaultInfrastructure(seedClient client.Client) infrastructur
 			Type:              b.Shoot.Info.Spec.Provider.Type,
 			ProviderConfig:    b.Shoot.Info.Spec.Provider.InfrastructureConfig,
 			Region:            b.Shoot.Info.Spec.Region,
-			AnnotateOperation: controllerutils.HasTask(b.Shoot.Info.Annotations, v1beta1constants.ShootTaskDeployInfrastructure) || b.isRestorePhase(),
+			AnnotateOperation: controllerutils.HasTask(b.Shoot.Info.Annotations, v1beta1constants.ShootTaskDeployInfrastructure) || b.IsRestorePhase(),
 		},
 		infrastructure.DefaultInterval,
 		infrastructure.DefaultSevereThreshold,
@@ -49,7 +49,7 @@ func (b *Botanist) DefaultInfrastructure(seedClient client.Client) infrastructur
 func (b *Botanist) DeployInfrastructure(ctx context.Context) error {
 	b.Shoot.Components.Extensions.Infrastructure.SetSSHPublicKey(b.Secrets[v1beta1constants.SecretNameSSHKeyPair].Data[secrets.DataKeySSHAuthorizedKeys])
 
-	if b.isRestorePhase() {
+	if b.IsRestorePhase() {
 		return b.Shoot.Components.Extensions.Infrastructure.Restore(ctx, b.ShootState)
 	}
 

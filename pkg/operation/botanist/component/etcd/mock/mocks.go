@@ -144,6 +144,18 @@ func (mr *MockEtcdMockRecorder) SetSecrets(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSecrets", reflect.TypeOf((*MockEtcd)(nil).SetSecrets), arg0)
 }
 
+// SetSourceBackupConfig mocks base method.
+func (m *MockEtcd) SetSourceBackupConfig(arg0 *etcd.BackupConfig) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSourceBackupConfig", arg0)
+}
+
+// SetSourceBackupConfig indicates an expected call of SetSourceBackupConfig.
+func (mr *MockEtcdMockRecorder) SetSourceBackupConfig(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSourceBackupConfig", reflect.TypeOf((*MockEtcd)(nil).SetSourceBackupConfig), arg0)
+}
+
 // Snapshot mocks base method.
 func (m *MockEtcd) Snapshot(arg0 context.Context, arg1 kubernetes.PodExecutor) error {
 	m.ctrl.T.Helper()

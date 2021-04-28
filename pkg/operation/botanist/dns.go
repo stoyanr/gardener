@@ -49,7 +49,7 @@ const (
 // DeployExternalDNS deploys the external DNSOwner, DNSProvider, and DNSEntry resources.
 func (b *Botanist) DeployExternalDNS(ctx context.Context) error {
 	if b.NeedsExternalDNS() {
-		if b.isRestorePhase() {
+		if b.IsRestorePhase() {
 			return dnsRestoreDeployer{
 				provider: b.Shoot.Components.Extensions.DNS.ExternalProvider,
 				entry:    b.Shoot.Components.Extensions.DNS.ExternalEntry,
@@ -74,7 +74,7 @@ func (b *Botanist) DeployExternalDNS(ctx context.Context) error {
 // DeployInternalDNS deploys the internal DNSOwner, DNSProvider, and DNSEntry resources.
 func (b *Botanist) DeployInternalDNS(ctx context.Context) error {
 	if b.NeedsInternalDNS() {
-		if b.isRestorePhase() {
+		if b.IsRestorePhase() {
 			return dnsRestoreDeployer{
 				provider: b.Shoot.Components.Extensions.DNS.InternalProvider,
 				entry:    b.Shoot.Components.Extensions.DNS.InternalEntry,

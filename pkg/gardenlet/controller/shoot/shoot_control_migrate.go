@@ -70,11 +70,11 @@ func (c *Controller) prepareShootForMigration(ctx context.Context, logger *logru
 		return reconcile.Result{}, utilerrors.WithSuppressed(operationErr, updateErr)
 	}
 
-	if flowErr := c.runPrepareShootControlPlaneMigration(o); flowErr != nil {
-		c.recorder.Event(shoot, corev1.EventTypeWarning, gardencorev1beta1.EventMigrationPreparationFailed, flowErr.Description)
-		_, updateErr := c.updateShootStatusOperationError(ctx, gardenClient, o.Shoot.Info, flowErr.Description, gardencorev1beta1.LastOperationTypeMigrate, flowErr.LastErrors...)
-		return reconcile.Result{}, utilerrors.WithSuppressed(errors.New(flowErr.Description), updateErr)
-	}
+	// if flowErr := c.runPrepareShootControlPlaneMigration(o); flowErr != nil {
+	// 	c.recorder.Event(shoot, corev1.EventTypeWarning, gardencorev1beta1.EventMigrationPreparationFailed, flowErr.Description)
+	// 	_, updateErr := c.updateShootStatusOperationError(ctx, gardenClient, o.Shoot.Info, flowErr.Description, gardencorev1beta1.LastOperationTypeMigrate, flowErr.LastErrors...)
+	// 	return reconcile.Result{}, utilerrors.WithSuppressed(errors.New(flowErr.Description), updateErr)
+	// }
 
 	return c.finalizeShootPrepareForMigration(ctx, gardenClient, shoot, o)
 }
@@ -298,13 +298,6 @@ func (c *Controller) finalizeShootPrepareForMigration(ctx context.Context, garde
 			_, updateErr := c.updateShootStatusOperationError(ctx, gardenClient, shoot, lastErr.Description, gardencorev1beta1.LastOperationTypeMigrate, *lastErr)
 			return reconcile.Result{}, utilerrors.WithSuppressed(errors.New(lastErr.Description), updateErr)
 		}
-	}
-
-	if err := o.SwitchBackupEntryToTargetSeed(ctx); err != nil {
-		lastErr := gardencorev1beta1helper.LastError(fmt.Sprintf("Could not switch BackupEntry resource in Garden to new Seed: %s", err))
-		c.recorder.Event(shoot, corev1.EventTypeWarning, gardencorev1beta1.EventDeleteError, lastErr.Description)
-		_, updateErr := c.updateShootStatusOperationError(ctx, gardenClient, shoot, lastErr.Description, gardencorev1beta1.LastOperationTypeMigrate, *lastErr)
-		return reconcile.Result{}, utilerrors.WithSuppressed(errors.New(lastErr.Description), updateErr)
 	}
 
 	c.recorder.Event(shoot, corev1.EventTypeNormal, gardencorev1beta1.EventMigrationPrepared, "Shoot Control Plane prepared for migration, successfully")

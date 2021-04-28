@@ -64,7 +64,6 @@ type actuator struct {
 
 func newActuator(gardenClient, seedClient kubernetes.Interface, be *gardencorev1beta1.BackupEntry, logger logrus.FieldLogger) Actuator {
 	extensionSecret := emptyExtensionSecret(be)
-
 	return &actuator{
 		logger:       logger.WithField("backupentry", be.Name),
 		gardenClient: gardenClient,
@@ -81,6 +80,7 @@ func newActuator(gardenClient, seedClient kubernetes.Interface, be *gardencorev1
 					Name:      extensionSecret.Name,
 					Namespace: extensionSecret.Namespace,
 				},
+				IsSource: metav1.HasAnnotation(be.ObjectMeta, "backupentry.gardener.cloud/source"),
 			},
 			extensionsbackupentry.DefaultInterval,
 			extensionsbackupentry.DefaultSevereThreshold,

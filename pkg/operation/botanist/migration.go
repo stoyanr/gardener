@@ -51,7 +51,7 @@ func (b *Botanist) runParallelTaskForEachExtensionComponent(ctx context.Context,
 	return flow.Parallel(fns...)(ctx)
 }
 
-func (b *Botanist) isRestorePhase() bool {
+func (b *Botanist) IsRestorePhase() bool {
 	return b.Shoot != nil &&
 		b.Shoot.Info != nil &&
 		b.Shoot.Info.Status.LastOperation != nil &&

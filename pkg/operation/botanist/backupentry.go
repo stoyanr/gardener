@@ -15,6 +15,8 @@
 package botanist
 
 import (
+	"fmt"
+
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/gardener/gardener/pkg/operation/botanist/component"
 	corebackupentry "github.com/gardener/gardener/pkg/operation/botanist/component/backupentry"
@@ -35,13 +37,35 @@ func (b *Botanist) DefaultCoreBackupEntry(gardenClient client.Client) component.
 		b.Logger,
 		gardenClient,
 		&corebackupentry.Values{
-			Namespace:         b.Shoot.Info.Namespace,
-			Name:              common.GenerateBackupEntryName(b.Shoot.Info.Status.TechnicalID, b.Shoot.Info.Status.UID),
-			ShootPurpose:      b.Shoot.Info.Spec.Purpose,
-			OwnerReference:    ownerRef,
-			SeedName:          pointer.StringPtr(b.Seed.Info.Name),
-			OverwriteSeedName: b.isRestorePhase(),
-			BucketName:        string(b.Seed.Info.UID),
+			Namespace:      b.Shoot.Info.Namespace,
+			Name:           common.GenerateBackupEntryName(b.Shoot.Info.Status.TechnicalID, b.Shoot.Info.Status.UID),
+			ShootPurpose:   b.Shoot.Info.Spec.Purpose,
+			OwnerReference: ownerRef,
+			SeedName:       pointer.StringPtr(b.Seed.Info.Name),
+			IsSource:       false,
+			BucketName:     string(b.Seed.Info.UID),
+		},
+		corebackupentry.DefaultInterval,
+		corebackupentry.DefaultTimeout,
+	)
+}
+
+// NewCoreSourceBackupEntry creates the default deployer for the core.gardener.cloud/v1beta1.BackupEntry resource.
+func (b *Botanist) SourceCoreBackupEntry(gardenClient client.Client) component.DeployWaiter {
+	ownerRef := metav1.NewControllerRef(b.Shoot.Info, gardencorev1beta1.SchemeGroupVersion.WithKind("Shoot"))
+	ownerRef.BlockOwnerDeletion = pointer.BoolPtr(false)
+
+	return corebackupentry.New(
+		b.Logger,
+		gardenClient,
+		&corebackupentry.Values{
+			Namespace:      b.Shoot.Info.Namespace,
+			Name:           fmt.Sprintf("%s-%s", "source", common.GenerateBackupEntryName(b.Shoot.Info.Status.TechnicalID, b.Shoot.Info.Status.UID)),
+			ShootPurpose:   b.Shoot.Info.Spec.Purpose,
+			OwnerReference: ownerRef,
+			SeedName:       pointer.StringPtr(b.Seed.Info.Name),
+			IsSource:       true,
+			BucketName:     string(b.Seed.Info.UID),
 		},
 		corebackupentry.DefaultInterval,
 		corebackupentry.DefaultTimeout,

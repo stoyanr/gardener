@@ -426,6 +426,29 @@ spec:
                         to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                       type: object
                   type: object
+                sourceStore:
+                  description: SourceStore defines the specification of the source object store provider for copying backups.
+                  properties:
+                    container:
+                      type: string
+                    prefix:
+                      type: string
+                    provider:
+                      description: StorageProvider defines the type of object store provider for storing backups.
+                      type: string
+                    secretRef:
+                      description: SecretReference represents a Secret Reference. It has enough information to retrieve secret in any namespace
+                      properties:
+                        name:
+                          description: Name is unique within a namespace to reference a secret resource.
+                          type: string
+                        namespace:
+                          description: Namespace defines the space within which the secret name must be unique.
+                          type: string
+                      type: object
+                  required:
+                  - prefix
+                  type: object
                 store:
                   description: Store defines the specification of object store provider
                     for storing backups.

@@ -18,8 +18,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/gardener/gardener/extensions/pkg/controller/backupentry/genericactuator"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/operation/botanist/component"
@@ -60,6 +62,8 @@ type Values struct {
 	// already exists (if this is false then the existing `.spec.seedName` will be kept even if the SeedName in these
 	// values differs.
 	OverwriteSeedName bool
+	// IsSource indicates whether this BackupEntry should be used as the source during ETCD backup migration
+	IsSource bool
 	// BucketName is the name of the bucket in which the BackupEntry shall be reconciled. This value is only used if the
 	// BackupEntry does not exist yet. Otherwise, the existing `.spec.bucketName` will be kept even if the BucketName in
 	// these values differs.
@@ -104,18 +108,20 @@ func (b *backupEntry) Deploy(ctx context.Context) error {
 		seedName   = b.values.SeedName
 	)
 
-	if err := b.client.Get(ctx, kutil.Key(b.values.Namespace, b.values.Name), backupEntry); err == nil {
-		bucketName = backupEntry.Spec.BucketName
-		seedName = backupEntry.Spec.SeedName
-	} else if client.IgnoreNotFound(err) != nil {
-		return err
-	}
-
-	if b.values.OverwriteSeedName {
-		seedName = b.values.SeedName
+	if b.values.IsSource {
+		existingBackupEntryName := strings.TrimPrefix(b.values.Name, "source-")
+		existingBackupEntry := &gardencorev1beta1.BackupEntry{}
+		if err := b.client.Get(ctx, kutil.Key(b.values.Namespace, existingBackupEntryName), existingBackupEntry); err == nil {
+			bucketName = existingBackupEntry.Spec.BucketName
+		} else if client.IgnoreNotFound(err) != nil {
+			return err
+		}
 	}
 
 	_, err := controllerutil.CreateOrUpdate(ctx, b.client, backupEntry, func() error {
+		if b.values.IsSource {
+			metav1.SetMetaDataAnnotation(&backupEntry.ObjectMeta, genericactuator.AnnotationSource, "true")
+		}
 		metav1.SetMetaDataAnnotation(&backupEntry.ObjectMeta, v1beta1constants.GardenerOperation, v1beta1constants.GardenerOperationReconcile)
 		metav1.SetMetaDataAnnotation(&backupEntry.ObjectMeta, v1beta1constants.GardenerTimestamp, TimeNow().UTC().String())
 		if b.values.ShootPurpose != nil {

@@ -74,7 +74,7 @@ func (b *Botanist) GenerateKubernetesDashboardConfig() (map[string]interface{}, 
 // EnsureIngressDNSRecord deploys the nginx ingress DNSEntry and DNSOwner resources.
 func (b *Botanist) EnsureIngressDNSRecord(ctx context.Context) error {
 	if b.NeedsExternalDNS() && !b.Shoot.HibernationEnabled && gardencorev1beta1helper.NginxIngressEnabled(b.Shoot.Info.Spec.Addons) {
-		if b.isRestorePhase() {
+		if b.IsRestorePhase() {
 			return dnsRestoreDeployer{
 				entry: b.Shoot.Components.Extensions.DNS.NginxEntry,
 				owner: b.Shoot.Components.Extensions.DNS.NginxOwner,
