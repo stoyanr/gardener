@@ -51,6 +51,20 @@ func (mr *MockEtcdMockRecorder) AlertingRules() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AlertingRules", reflect.TypeOf((*MockEtcd)(nil).AlertingRules))
 }
 
+// CopyOperation mocks base method.
+func (m *MockEtcd) CopyOperation(arg0 context.Context, arg1 kubernetes.PodExecutor) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CopyOperation", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CopyOperation indicates an expected call of CopyOperation.
+func (mr *MockEtcdMockRecorder) CopyOperation(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CopyOperation", reflect.TypeOf((*MockEtcd)(nil).CopyOperation), arg0, arg1)
+}
+
 // Deploy mocks base method.
 func (m *MockEtcd) Deploy(arg0 context.Context) error {
 	m.ctrl.T.Helper()
@@ -154,20 +168,6 @@ func (m *MockEtcd) SetSourceBackupConfig(arg0 *etcd.BackupConfig) {
 func (mr *MockEtcdMockRecorder) SetSourceBackupConfig(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSourceBackupConfig", reflect.TypeOf((*MockEtcd)(nil).SetSourceBackupConfig), arg0)
-}
-
-// Snapshot mocks base method.
-func (m *MockEtcd) Snapshot(arg0 context.Context, arg1 kubernetes.PodExecutor) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Snapshot", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Snapshot indicates an expected call of Snapshot.
-func (mr *MockEtcdMockRecorder) Snapshot(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockEtcd)(nil).Snapshot), arg0, arg1)
 }
 
 // Wait mocks base method.

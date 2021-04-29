@@ -16,6 +16,7 @@ package shoot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -69,11 +70,11 @@ func (c *Controller) prepareShootForMigration(ctx context.Context, logger *logru
 		return reconcile.Result{}, utilerrors.WithSuppressed(operationErr, updateErr)
 	}
 
-	// if flowErr := c.runPrepareShootControlPlaneMigration(o); flowErr != nil {
-	// 	c.recorder.Event(shoot, corev1.EventTypeWarning, gardencorev1beta1.EventMigrationPreparationFailed, flowErr.Description)
-	// 	_, updateErr := c.updateShootStatusOperationError(ctx, gardenClient, o.Shoot.Info, flowErr.Description, gardencorev1beta1.LastOperationTypeMigrate, flowErr.LastErrors...)
-	// 	return reconcile.Result{}, utilerrors.WithSuppressed(errors.New(flowErr.Description), updateErr)
-	// }
+	if flowErr := c.runPrepareShootControlPlaneMigration(o); flowErr != nil {
+		c.recorder.Event(shoot, corev1.EventTypeWarning, gardencorev1beta1.EventMigrationPreparationFailed, flowErr.Description)
+		_, updateErr := c.updateShootStatusOperationError(ctx, gardenClient, o.Shoot.Info, flowErr.Description, gardencorev1beta1.LastOperationTypeMigrate, flowErr.LastErrors...)
+		return reconcile.Result{}, utilerrors.WithSuppressed(errors.New(flowErr.Description), updateErr)
+	}
 
 	return c.finalizeShootPrepareForMigration(ctx, gardenClient, shoot, o)
 }
@@ -168,17 +169,17 @@ func (c *Controller) runPrepareShootControlPlaneMigration(o *operation.Operation
 		})
 		deployETCD = g.Add(flow.Task{
 			Name:         "Deploying main and events etcd",
-			Fn:           flow.TaskFn(botanist.DeployEtcd).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(nonTerminatingNamespace),
+			Fn:           flow.TaskFn(botanist.DeployEtcd).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(cleanupShootResources),
 			Dependencies: flow.NewTaskIDs(deploySecrets),
 		})
 		scaleETCDToOne = g.Add(flow.Task{
 			Name:         "Scaling etcd up",
-			Fn:           flow.TaskFn(botanist.ScaleETCDToOne).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(nonTerminatingNamespace && o.Shoot.HibernationEnabled),
+			Fn:           flow.TaskFn(botanist.ScaleETCDToOne).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(cleanupShootResources && o.Shoot.HibernationEnabled),
 			Dependencies: flow.NewTaskIDs(deployETCD),
 		})
 		waitUntilEtcdReady = g.Add(flow.Task{
 			Name:         "Waiting until main and event etcd report readiness",
-			Fn:           flow.TaskFn(botanist.WaitUntilEtcdsReady).DoIf(nonTerminatingNamespace),
+			Fn:           flow.TaskFn(botanist.WaitUntilEtcdsReady).DoIf(cleanupShootResources),
 			Dependencies: flow.NewTaskIDs(deployETCD, scaleETCDToOne),
 		})
 		wakeUpKubeAPIServer = g.Add(flow.Task{
@@ -251,15 +252,15 @@ func (c *Controller) runPrepareShootControlPlaneMigration(o *operation.Operation
 			Fn:           flow.TaskFn(botanist.DeleteDNSProviders),
 			Dependencies: flow.NewTaskIDs(migrateIngressDNSRecord, migrateExternalDNSRecord, migrateInternalDNSRecord),
 		})
-		createETCDSnapshot = g.Add(flow.Task{
-			Name:         "Creating ETCD Snapshot",
-			Fn:           flow.TaskFn(botanist.SnapshotEtcd).DoIf(nonTerminatingNamespace),
+		initiateETCDCopyOperation = g.Add(flow.Task{
+			Name:         "Initiating etcd copy operation",
+			Fn:           flow.TaskFn(botanist.InitiateETCDCopyOperation).DoIf(cleanupShootResources),
 			Dependencies: flow.NewTaskIDs(waitUntilAPIServerDeleted),
 		})
 		scaleETCDToZero = g.Add(flow.Task{
-			Name:         "Scaling ETCD to zero",
+			Name:         "Scaling etcd to zero",
 			Fn:           flow.TaskFn(botanist.ScaleETCDToZero).DoIf(nonTerminatingNamespace),
-			Dependencies: flow.NewTaskIDs(createETCDSnapshot),
+			Dependencies: flow.NewTaskIDs(initiateETCDCopyOperation),
 		})
 		deleteNamespace = g.Add(flow.Task{
 			Name:         "Deleting shoot namespace in Seed",
@@ -290,14 +291,14 @@ func (c *Controller) runPrepareShootControlPlaneMigration(o *operation.Operation
 }
 
 func (c *Controller) finalizeShootPrepareForMigration(ctx context.Context, gardenClient kubernetes.Interface, shoot *gardencorev1beta1.Shoot, o *operation.Operation) (reconcile.Result, error) {
-	// if len(o.Shoot.Info.Status.UID) > 0 {
-	// 	if err := o.DeleteClusterResourceFromSeed(ctx); err != nil {
-	// 		lastErr := gardencorev1beta1helper.LastError(fmt.Sprintf("Could not delete Cluster resource in seed: %s", err))
-	// 		c.recorder.Event(shoot, corev1.EventTypeWarning, gardencorev1beta1.EventDeleteError, lastErr.Description)
-	// 		_, updateErr := c.updateShootStatusOperationError(ctx, gardenClient, shoot, lastErr.Description, gardencorev1beta1.LastOperationTypeMigrate, *lastErr)
-	// 		return reconcile.Result{}, utilerrors.WithSuppressed(errors.New(lastErr.Description), updateErr)
-	// 	}
-	// }
+	if len(o.Shoot.Info.Status.UID) > 0 {
+		if err := o.DeleteClusterResourceFromSeed(ctx); err != nil {
+			lastErr := gardencorev1beta1helper.LastError(fmt.Sprintf("Could not delete Cluster resource in seed: %s", err))
+			c.recorder.Event(shoot, corev1.EventTypeWarning, gardencorev1beta1.EventDeleteError, lastErr.Description)
+			_, updateErr := c.updateShootStatusOperationError(ctx, gardenClient, shoot, lastErr.Description, gardencorev1beta1.LastOperationTypeMigrate, *lastErr)
+			return reconcile.Result{}, utilerrors.WithSuppressed(errors.New(lastErr.Description), updateErr)
+		}
+	}
 
 	c.recorder.Event(shoot, corev1.EventTypeNormal, gardencorev1beta1.EventMigrationPrepared, "Shoot Control Plane prepared for migration, successfully")
 

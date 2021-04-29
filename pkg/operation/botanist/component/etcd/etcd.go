@@ -104,8 +104,8 @@ type Etcd interface {
 	component.MonitoringComponent
 	// ServiceDNSNames returns the service DNS names for the etcd.
 	ServiceDNSNames() []string
-	// Snapshot triggers the backup-restore sidecar to perform a full snapshot in case backup configuration is provided.
-	Snapshot(context.Context, kubernetes.PodExecutor) error
+	// CopyOperation triggers the backup-restore sidecar to initialize a copy operation.
+	CopyOperation(context.Context, kubernetes.PodExecutor) error
 	// SetSecrets sets the secrets.
 	SetSecrets(Secrets)
 	// SetBackupConfig sets the backup configuration.
@@ -567,11 +567,7 @@ func (e *etcd) emptyHVPA() *hvpav1alpha1.Hvpa {
 	return &hvpav1alpha1.Hvpa{ObjectMeta: metav1.ObjectMeta{Name: Name(e.role), Namespace: e.namespace}}
 }
 
-func (e *etcd) Snapshot(ctx context.Context, podExecutor kubernetes.PodExecutor) error {
-	if e.backupConfig == nil {
-		return fmt.Errorf("no backup is configured for this etcd, cannot make a snapshot")
-	}
-
+func (e *etcd) CopyOperation(ctx context.Context, podExecutor kubernetes.PodExecutor) error {
 	etcdMainSelector := e.podLabelSelector()
 
 	podsList := &corev1.PodList{}
@@ -590,7 +586,7 @@ func (e *etcd) Snapshot(ctx context.Context, podExecutor kubernetes.PodExecutor)
 		podsList.Items[0].GetName(),
 		containerNameBackupRestore,
 		"/bin/sh",
-		fmt.Sprintf("curl -k https://etcd-%s-local:%d/snapshot/full", e.role, PortBackupRestore),
+		fmt.Sprintf("curl -k https://etcd-%s-local:%d/object/copyop", e.role, PortBackupRestore),
 	)
 	return err
 }

@@ -186,9 +186,9 @@ func (b *Botanist) WaitUntilEtcdsReady(ctx context.Context) error {
 	)
 }
 
-// SnapshotEtcd executes into the etcd-main pod and triggers a full snapshot.
-func (b *Botanist) SnapshotEtcd(ctx context.Context) error {
-	return b.Shoot.Components.ControlPlane.EtcdMain.Snapshot(ctx, kubernetes.NewPodExecutor(b.K8sSeedClient.RESTConfig()))
+// InitiateETCDCopyOperation executes into the etcd-main pod and initiates a copy operation.
+func (b *Botanist) InitiateETCDCopyOperation(ctx context.Context) error {
+	return b.Shoot.Components.ControlPlane.EtcdMain.CopyOperation(ctx, kubernetes.NewPodExecutor(b.K8sSeedClient.RESTConfig()))
 }
 
 // ScaleETCDToZero scales ETCD main and events replicas to zero.
