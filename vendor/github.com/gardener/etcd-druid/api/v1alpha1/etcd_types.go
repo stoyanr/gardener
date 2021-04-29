@@ -65,22 +65,30 @@ type TLSConfig struct {
 	TLSCASecretRef corev1.SecretReference `json:"tlsCASecretRef"`
 }
 
+// CompressionSpec defines parameters related to compression of Snapshots(full as well as delta).
+type CompressionSpec struct {
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+	// +optional
+	CompressionPolicy *string `json:"policy,omitempty"`
+}
+
 // BackupSpec defines parametes associated with the full and delta snapshots of etcd
 type BackupSpec struct {
 	// Port define the port on which etcd-backup-restore server will exposed.
 	// +optional
-	Port *int `json:"port,omitempty"`
+	Port *int32 `json:"port,omitempty"`
 	// +optional
 	TLS *TLSConfig `json:"tls,omitempty"`
 	// Image defines the etcd container image and tag
 	// +optional
 	Image *string `json:"image,omitempty"`
-	// SourceStore defines the specification of object store provider for storing backups.
-	// +optional
-	SourceStore *StoreSpec `json:"sourceStore,omitempty"`
 	// Store defines the specification of object store provider for storing backups.
 	// +optional
 	Store *StoreSpec `json:"store,omitempty"`
+	// SourceStore defines the specification of the source object store provider for copying backups.
+	// +optional
+	SourceStore *StoreSpec `json:"sourceStore,omitempty"`
 	// Resources defines the compute Resources required by backup-restore container.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
@@ -100,9 +108,12 @@ type BackupSpec struct {
 	// DeltaSnapshotMemoryLimit defines the memory limit after which delta snapshots will be taken
 	// +optional
 	DeltaSnapshotMemoryLimit *resource.Quantity `json:"deltaSnapshotMemoryLimit,omitempty"`
+	// SnapshotCompression defines the specification for compression of Snapshots.
+	// +optional
+	SnapshotCompression *CompressionSpec `json:"compression,omitempty"`
 }
 
-// EtcdConfig defines parametes associated etcd deployed
+// EtcdConfig defines parameters associated etcd deployed
 type EtcdConfig struct {
 	// Quota defines the etcd DB quota.
 	// +optional
@@ -111,9 +122,9 @@ type EtcdConfig struct {
 	// +optional
 	DefragmentationSchedule *string `json:"defragmentationSchedule,omitempty"`
 	// +optional
-	ServerPort *int `json:"serverPort,omitempty"`
+	ServerPort *int32 `json:"serverPort,omitempty"`
 	// +optional
-	ClientPort *int `json:"clientPort,omitempty"`
+	ClientPort *int32 `json:"clientPort,omitempty"`
 	// Image defines the etcd container image and tag
 	// +optional
 	Image *string `json:"image,omitempty"`
@@ -121,7 +132,7 @@ type EtcdConfig struct {
 	AuthSecretRef *corev1.SecretReference `json:"authSecretRef,omitempty"`
 	// Metrics defines the level of detail for exported metrics of etcd, specify 'extensive' to include histogram metrics.
 	// +optional
-	Metrics MetricsLevel `json:"metrics,omitempty"`
+	Metrics *MetricsLevel `json:"metrics,omitempty"`
 	// Resources defines the compute Resources required by etcd container.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional

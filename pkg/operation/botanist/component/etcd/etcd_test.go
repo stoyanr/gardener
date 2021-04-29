@@ -259,7 +259,7 @@ var _ = Describe("Etcd", func() {
 						},
 						ServerPort:              &PortEtcdServer,
 						ClientPort:              &PortEtcdClient,
-						Metrics:                 druidv1alpha1.Basic,
+						Metrics:                 func(v druidv1alpha1.MetricsLevel) *druidv1alpha1.MetricsLevel { return &v }(druidv1alpha1.Basic),
 						DefragmentationSchedule: &defragSchedule,
 						Quota:                   &quota,
 					},
@@ -276,7 +276,7 @@ var _ = Describe("Etcd", func() {
 
 			if class == ClassImportant {
 				obj.Spec.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict"] = "false"
-				obj.Spec.Etcd.Metrics = druidv1alpha1.Extensive
+				obj.Spec.Etcd.Metrics = func(v druidv1alpha1.MetricsLevel) *druidv1alpha1.MetricsLevel { return &v }(druidv1alpha1.Extensive)
 				obj.Spec.VolumeClaimTemplate = pointer.StringPtr(testRole + "-etcd")
 			}
 
