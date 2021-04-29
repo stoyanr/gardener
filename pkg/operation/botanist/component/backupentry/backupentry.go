@@ -178,7 +178,15 @@ func (b *backupEntry) Wait(ctx context.Context) error {
 }
 
 // Destroy is not implemented yet.
-func (b *backupEntry) Destroy(_ context.Context) error { return nil }
+func (b *backupEntry) Destroy(ctx context.Context) error {
+	backupEntry := &gardencorev1beta1.BackupEntry{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      b.values.Name,
+			Namespace: b.values.Namespace,
+		},
+	}
+	return client.IgnoreNotFound(b.client.Delete(ctx, backupEntry))
+}
 
 // WaitCleanup is not implemented yet.
 func (b *backupEntry) WaitCleanup(_ context.Context) error { return nil }

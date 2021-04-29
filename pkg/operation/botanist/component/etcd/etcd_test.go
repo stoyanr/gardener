@@ -1011,7 +1011,7 @@ var _ = Describe("Etcd", func() {
 
 	Describe("#Snapshot", func() {
 		It("should return an error when the backup config is nil", func() {
-			Expect(etcd.Snapshot(ctx, nil)).To(MatchError(ContainSubstring("no backup is configured")))
+			Expect(etcd.CopyOperation(ctx, nil)).To(MatchError(ContainSubstring("no backup is configured")))
 		})
 
 		Context("w/ backup configuration", func() {
@@ -1057,10 +1057,10 @@ var _ = Describe("Etcd", func() {
 					podName,
 					"backup-restore",
 					"/bin/sh",
-					"curl -k https://etcd-"+testRole+"-local:8080/snapshot/full",
+					"curl -k https://etcd-"+testRole+"-local:8080/object/copyop",
 				)
 
-				Expect(etcd.Snapshot(ctx, podExecutor)).To(Succeed())
+				Expect(etcd.CopyOperation(ctx, podExecutor)).To(Succeed())
 			})
 
 			It("should return an error when the pod listing fails", func() {
@@ -1071,7 +1071,7 @@ var _ = Describe("Etcd", func() {
 					client.MatchingLabelsSelector{Selector: selector},
 				).Return(fakeErr)
 
-				Expect(etcd.Snapshot(ctx, podExecutor)).To(MatchError(fakeErr))
+				Expect(etcd.CopyOperation(ctx, podExecutor)).To(MatchError(fakeErr))
 			})
 
 			It("should return an error when the pod list is empty", func() {
@@ -1089,7 +1089,7 @@ var _ = Describe("Etcd", func() {
 					},
 				)
 
-				Expect(etcd.Snapshot(ctx, podExecutor)).To(MatchError(ContainSubstring("didn't find any pods")))
+				Expect(etcd.CopyOperation(ctx, podExecutor)).To(MatchError(ContainSubstring("didn't find any pods")))
 			})
 
 			It("should return an error when the pod list is too large", func() {
@@ -1112,7 +1112,7 @@ var _ = Describe("Etcd", func() {
 					},
 				)
 
-				Expect(etcd.Snapshot(ctx, podExecutor)).To(MatchError(ContainSubstring("multiple ETCD Pods found")))
+				Expect(etcd.CopyOperation(ctx, podExecutor)).To(MatchError(ContainSubstring("multiple ETCD Pods found")))
 			})
 
 			It("should return an error when the execution command fails", func() {
@@ -1143,10 +1143,10 @@ var _ = Describe("Etcd", func() {
 					podName,
 					"backup-restore",
 					"/bin/sh",
-					"curl -k https://etcd-"+testRole+"-local:8080/snapshot/full",
+					"curl -k https://etcd-"+testRole+"-local:8080/object/copyop",
 				).Return(nil, fakeErr)
 
-				Expect(etcd.Snapshot(ctx, podExecutor)).To(MatchError(fakeErr))
+				Expect(etcd.CopyOperation(ctx, podExecutor)).To(MatchError(fakeErr))
 			})
 		})
 	})
