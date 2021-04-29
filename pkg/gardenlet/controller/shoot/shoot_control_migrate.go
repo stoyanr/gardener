@@ -16,7 +16,6 @@ package shoot
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -291,14 +290,14 @@ func (c *Controller) runPrepareShootControlPlaneMigration(o *operation.Operation
 }
 
 func (c *Controller) finalizeShootPrepareForMigration(ctx context.Context, gardenClient kubernetes.Interface, shoot *gardencorev1beta1.Shoot, o *operation.Operation) (reconcile.Result, error) {
-	if len(o.Shoot.Info.Status.UID) > 0 {
-		if err := o.DeleteClusterResourceFromSeed(ctx); err != nil {
-			lastErr := gardencorev1beta1helper.LastError(fmt.Sprintf("Could not delete Cluster resource in seed: %s", err))
-			c.recorder.Event(shoot, corev1.EventTypeWarning, gardencorev1beta1.EventDeleteError, lastErr.Description)
-			_, updateErr := c.updateShootStatusOperationError(ctx, gardenClient, shoot, lastErr.Description, gardencorev1beta1.LastOperationTypeMigrate, *lastErr)
-			return reconcile.Result{}, utilerrors.WithSuppressed(errors.New(lastErr.Description), updateErr)
-		}
-	}
+	// if len(o.Shoot.Info.Status.UID) > 0 {
+	// 	if err := o.DeleteClusterResourceFromSeed(ctx); err != nil {
+	// 		lastErr := gardencorev1beta1helper.LastError(fmt.Sprintf("Could not delete Cluster resource in seed: %s", err))
+	// 		c.recorder.Event(shoot, corev1.EventTypeWarning, gardencorev1beta1.EventDeleteError, lastErr.Description)
+	// 		_, updateErr := c.updateShootStatusOperationError(ctx, gardenClient, shoot, lastErr.Description, gardencorev1beta1.LastOperationTypeMigrate, *lastErr)
+	// 		return reconcile.Result{}, utilerrors.WithSuppressed(errors.New(lastErr.Description), updateErr)
+	// 	}
+	// }
 
 	c.recorder.Event(shoot, corev1.EventTypeNormal, gardencorev1beta1.EventMigrationPrepared, "Shoot Control Plane prepared for migration, successfully")
 

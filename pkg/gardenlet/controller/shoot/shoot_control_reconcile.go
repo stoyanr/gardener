@@ -223,12 +223,12 @@ func (c *Controller) runReconcileShootFlow(ctx context.Context, o *operation.Ope
 		})
 		destroySourceBackupEntry = g.Add(flow.Task{
 			Name:         "Destroying source BackupEntry in garden cluster",
-			Fn:           flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.Destroy),
+			Fn:           flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.Destroy).DoIf(allowBackup && botanist.IsRestorePhase()),
 			Dependencies: flow.NewTaskIDs(waitDestroyETCDForCopy),
 		})
 		_ = g.Add(flow.Task{
 			Name:         "Waiting until source BackupEntry is destroyed",
-			Fn:           flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.WaitCleanup),
+			Fn:           flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.WaitCleanup).DoIf(allowBackup && botanist.IsRestorePhase()),
 			Dependencies: flow.NewTaskIDs(destroySourceBackupEntry),
 		})
 		deployETCD = g.Add(flow.Task{

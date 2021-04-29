@@ -116,6 +116,14 @@ func (b *backupEntry) Deploy(ctx context.Context) error {
 		} else if client.IgnoreNotFound(err) != nil {
 			return err
 		}
+
+		// If the source backupentry already exists then use its bucketName. In case the restore operation was restarted,
+		// the destination backup bucket will already have its bucketName changed to that of the new seed.
+		if err := b.client.Get(ctx, kutil.Key(b.values.Namespace, b.values.Name), backupEntry); err == nil {
+			bucketName = backupEntry.Spec.BucketName
+		} else if client.IgnoreNotFound(err) != nil {
+			return err
+		}
 	}
 
 	_, err := controllerutil.CreateOrUpdate(ctx, b.client, backupEntry, func() error {
