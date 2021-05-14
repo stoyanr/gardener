@@ -130,6 +130,11 @@ func (b *bootstrapper) Deploy(ctx context.Context) error {
 					Verbs:     []string{"get", "list", "patch", "update", "watch", "create", "delete"},
 				},
 				{
+					APIGroups: []string{corev1.GroupName},
+					Resources: []string{"persistentvolumeclaims"},
+					Verbs:     []string{"get", "list", "watch"},
+				},
+				{
 					APIGroups: []string{druidv1alpha1.GroupVersion.Group},
 					Resources: []string{"etcds"},
 					Verbs:     []string{"get", "list", "watch", "update", "patch"},
