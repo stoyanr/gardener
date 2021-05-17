@@ -17,6 +17,7 @@ package network
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -106,6 +107,11 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(network.ObjectMeta, network.Status.LastOperation)
+
+	leaseExpired := time.Now().UTC().After(cluster.LeaseExpiration.Time)
+	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+		return reconcile.Result{}, fmt.Errorf("stopping  Network %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
+	}
 
 	switch {
 	case extensionscontroller.IsMigrated(network):

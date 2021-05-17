@@ -49,10 +49,14 @@ spec:
               description: Shoot is a raw extension field that contains the shoot resource that has to be reconciled.
               type: object
               x-kubernetes-preserve-unknown-fields: true
+            leaseExpiration:
+              description: LeaseExpiration is a string field that specifies when the lease for this cluster will expire. The lease is renewed by Gardenlet. If it has expired, extension controllers must not preform reconcilation operations.
+              type: string
           required:
             - cloudProfile
             - seed
             - shoot
+            - leaseExpiration
           type: object
       required:
         - spec

@@ -171,7 +171,7 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 
 	var result reconcile.Result
 
-	shoot, err := extensionscontroller.GetShoot(ctx, r.client, request.Namespace)
+	shoot, leaseExpired, err := extensionscontroller.GetShoot(ctx, r.client, request.Namespace)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -182,6 +182,9 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(ex.ObjectMeta, ex.Status.LastOperation)
+	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+		return reconcile.Result{}, fmt.Errorf("stopping Extension %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
+	}
 
 	switch {
 	case extensionscontroller.IsMigrated(ex):

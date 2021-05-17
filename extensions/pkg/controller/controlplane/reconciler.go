@@ -109,6 +109,11 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(cp.ObjectMeta, cp.Status.LastOperation)
 
+	leaseExpired := time.Now().UTC().After(cluster.LeaseExpiration.Time)
+	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+		return reconcile.Result{}, fmt.Errorf("stopping Controlplane %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
+	}
+
 	switch {
 	case extensionscontroller.IsMigrated(cp):
 		return reconcile.Result{}, nil

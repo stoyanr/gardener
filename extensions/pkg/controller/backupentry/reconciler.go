@@ -95,7 +95,7 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	shootTechnicalID, _ := ExtractShootDetailsFromBackupEntryName(be.Name)
-	shoot, err := extensionscontroller.GetShoot(ctx, r.client, shootTechnicalID)
+	shoot, leaseExpired, err := extensionscontroller.GetShoot(ctx, r.client, shootTechnicalID)
 	// As BackupEntry continues to exist post deletion of a Shoot,
 	// we do not want to block its deletion when the Cluster is not found.
 	if client.IgnoreNotFound(err) != nil {
@@ -108,6 +108,9 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(be.ObjectMeta, be.Status.LastOperation)
+	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+		return reconcile.Result{}, fmt.Errorf("stopping BackupEntry %s reconciliation: the cluster lease for the Shoot has expired.", request.Name)
+	}
 
 	switch {
 	case extensionscontroller.IsMigrated(be):

@@ -93,7 +93,7 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		return reconcile.Result{}, fmt.Errorf("could not fetch OperatingSystemConfig: %+v", err)
 	}
 
-	shoot, err := extensionscontroller.GetShoot(ctx, r.client, request.Namespace)
+	shoot, leaseExpired, err := extensionscontroller.GetShoot(ctx, r.client, request.Namespace)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -104,6 +104,9 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(osc.ObjectMeta, osc.Status.LastOperation)
+	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+		return reconcile.Result{}, fmt.Errorf("stopping  OperatingSystemConfig %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
+	}
 
 	switch {
 	case extensionscontroller.IsMigrated(osc):

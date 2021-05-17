@@ -54,6 +54,7 @@ type Controller struct {
 	careReconciler                reconcile.Reconciler
 	controllerInstallationControl ControllerInstallationControlInterface
 	seedRegistrationControl       SeedRegistrationControlInterface
+	extensionsClusterLeaseControl ExtensionClusterLeaseController
 	recorder                      record.EventRecorder
 	imageVector                   imagevector.ImageVector
 	shootReconciliationDueTracker *reconciliationDueTracker
@@ -67,6 +68,7 @@ type Controller struct {
 	shootQueue                  workqueue.RateLimitingInterface
 	shootSeedQueue              workqueue.RateLimitingInterface
 	seedRegistrationQueue       workqueue.RateLimitingInterface
+	extensionsClusterLeaseQueue workqueue.RateLimitingInterface
 
 	hasSyncedFuncs []cache.InformerSynced
 
@@ -102,6 +104,7 @@ func NewShootController(clientMap clientmap.ClientMap, k8sGardenCoreInformers ga
 		careReconciler:                NewCareReconciler(clientMap, gardenCoreV1beta1Informer, imageVector, identity, gardenClusterIdentity, config),
 		controllerInstallationControl: NewDefaultControllerInstallationControl(clientMap, gardenCoreV1beta1Informer, recorder),
 		seedRegistrationControl:       NewDefaultSeedRegistrationControl(clientMap, recorder, logger.Logger),
+		extensionsClusterLeaseControl: NewExtensionsClusterLeaseController(time.Now, config, seedLister),
 		recorder:                      recorder,
 		imageVector:                   imageVector,
 		shootReconciliationDueTracker: newReconciliationDueTracker(),
@@ -112,6 +115,7 @@ func NewShootController(clientMap clientmap.ClientMap, k8sGardenCoreInformers ga
 
 		controllerInstallationQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "shoot-controllerinstallation"),
 		shootCareQueue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "shoot-care"),
+		extensionsClusterLeaseQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "extensions-cluster-lease"),
 		shootQueue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "shoot"),
 		shootSeedQueue:              workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "shoot-seeds"),
 		seedRegistrationQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "shooted-seed-registration"),
@@ -151,6 +155,13 @@ func NewShootController(clientMap clientmap.ClientMap, k8sGardenCoreInformers ga
 		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc:    shootController.seedRegistrationAdd,
 			UpdateFunc: shootController.seedRegistrationUpdate,
+		},
+	})
+
+	shootInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+		FilterFunc: controllerutils.ShootFilterFunc(confighelper.SeedNameFromSeedConfig(config.SeedConfig), seedLister, config.SeedSelector),
+		Handler: cache.ResourceEventHandlerFuncs{
+			AddFunc: shootController.extensionsClusterLeaseAdd,
 		},
 	})
 
@@ -211,6 +222,7 @@ func (c *Controller) Run(ctx context.Context, shootWorkers, shootCareWorkers int
 
 	for i := 0; i < shootWorkers; i++ {
 		controllerutils.CreateWorker(ctx, c.shootQueue, "Shoot", reconcile.Func(c.reconcileShootRequest), &waitGroup, c.workerCh)
+		controllerutils.CreateWorker(ctx, c.extensionsClusterLeaseQueue, "Extensions Cluster Lease", reconcile.Func(c.reconcileExtensionClusterLeaseControl), &waitGroup, c.workerCh)
 	}
 	for i := 0; i < shootCareWorkers; i++ {
 		controllerutils.CreateWorker(ctx, c.shootCareQueue, "Shoot Care", c.careReconciler, &waitGroup, c.workerCh)
@@ -227,6 +239,7 @@ func (c *Controller) Run(ctx context.Context, shootWorkers, shootCareWorkers int
 	c.seedRegistrationQueue.ShutDown()
 	c.shootCareQueue.ShutDown()
 	c.shootQueue.ShutDown()
+	c.extensionsClusterLeaseQueue.ShutDown()
 	c.shootSeedQueue.ShutDown()
 
 	for {
@@ -234,9 +247,10 @@ func (c *Controller) Run(ctx context.Context, shootWorkers, shootCareWorkers int
 			controllerInstallationQueueLength = c.controllerInstallationQueue.Len()
 			seedRegistrationQueueLength       = c.seedRegistrationQueue.Len()
 			shootQueueLength                  = c.shootQueue.Len()
+			extensionLeaseQueueLength         = c.extensionsClusterLeaseQueue.Len()
 			shootCareQueueLength              = c.shootCareQueue.Len()
 			shootSeedQueueLength              = c.shootSeedQueue.Len()
-			queueLengths                      = shootQueueLength + shootCareQueueLength + shootSeedQueueLength + seedRegistrationQueueLength + controllerInstallationQueueLength
+			queueLengths                      = shootQueueLength + extensionLeaseQueueLength + shootCareQueueLength + shootSeedQueueLength + seedRegistrationQueueLength + controllerInstallationQueueLength
 		)
 		if queueLengths == 0 && c.numberOfRunningWorkers == 0 {
 			logger.Logger.Debug("No running Shoot worker and no items left in the queues. Terminated Shoot controller...")
