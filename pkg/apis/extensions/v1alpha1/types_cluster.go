@@ -64,4 +64,6 @@ type ClusterSpec struct {
 	// +kubebuilder:validation:XPreserveUnknownFields
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Shoot runtime.RawExtension `json:"shoot"`
+	// LeaseExpiration indicates when the lease of this cluster will expire
+	LeaseExpiration metav1.MicroTime `json:"leaseExpiration"`
 }

@@ -16,6 +16,7 @@ package extensions
 
 import (
 	"context"
+	"time"
 
 	"github.com/gardener/gardener/pkg/apis/core"
 	gardencoreinstall "github.com/gardener/gardener/pkg/apis/core/install"
@@ -31,6 +32,8 @@ import (
 )
 
 var gardenScheme *runtime.Scheme
+
+const ClusterLeaseExpirationTimeout = 2 * time.Minute
 
 func init() {
 	gardenScheme = runtime.NewScheme()
@@ -100,6 +103,8 @@ func SyncClusterResourceToSeed(
 		if shootObj != nil {
 			cluster.Spec.Shoot = runtime.RawExtension{Object: shootObj}
 		}
+
+		cluster.Spec.LeaseExpiration = metav1.NewMicroTime(time.Now().UTC().Add(ClusterLeaseExpirationTimeout))
 		return nil
 	})
 	return err
@@ -107,10 +112,11 @@ func SyncClusterResourceToSeed(
 
 // Cluster contains the decoded resources of Gardener's extension Cluster resource.
 type Cluster struct {
-	ObjectMeta   metav1.ObjectMeta
-	CloudProfile *gardencorev1beta1.CloudProfile
-	Seed         *gardencorev1beta1.Seed
-	Shoot        *gardencorev1beta1.Shoot
+	ObjectMeta      metav1.ObjectMeta
+	CloudProfile    *gardencorev1beta1.CloudProfile
+	Seed            *gardencorev1beta1.Seed
+	Shoot           *gardencorev1beta1.Shoot
+	LeaseExpiration metav1.MicroTime
 }
 
 // GetCluster tries to read Gardener's Cluster extension resource in the given namespace.
@@ -135,7 +141,9 @@ func GetCluster(ctx context.Context, c client.Client, namespace string) (*Cluste
 		return nil, err
 	}
 
-	return &Cluster{cluster.ObjectMeta, cloudProfile, seed, shoot}, nil
+	leaseExpiration := cluster.Spec.LeaseExpiration
+
+	return &Cluster{cluster.ObjectMeta, cloudProfile, seed, shoot, leaseExpiration}, nil
 }
 
 // CloudProfileFromCluster returns the CloudProfile resource inside the Cluster resource.
@@ -199,13 +207,15 @@ func ShootFromCluster(decoder runtime.Decoder, cluster *extensionsv1alpha1.Clust
 }
 
 // GetShoot tries to read Gardener's Cluster extension resource in the given namespace and return the embedded Shoot resource.
-func GetShoot(ctx context.Context, c client.Client, namespace string) (*gardencorev1beta1.Shoot, error) {
+func GetShoot(ctx context.Context, c client.Client, namespace string) (*gardencorev1beta1.Shoot, bool, error) {
 	cluster := &extensionsv1alpha1.Cluster{}
 	if err := c.Get(ctx, kutil.Key(namespace), cluster); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return ShootFromCluster(NewGardenDecoder(), cluster)
+	expired := time.Now().UTC().After(cluster.Spec.LeaseExpiration.Time)
+	shoot, err := ShootFromCluster(NewGardenDecoder(), cluster)
+	return shoot, expired, err
 }
 
 // NewGardenDecoder returns a new Garden API decoder.

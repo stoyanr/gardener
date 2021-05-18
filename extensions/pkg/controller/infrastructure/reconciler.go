@@ -17,6 +17,7 @@ package infrastructure
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -101,12 +102,18 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	logger := r.logger.WithValues("infrastructure", client.ObjectKeyFromObject(infrastructure))
+
 	if extensionscontroller.IsFailed(cluster) {
 		r.logger.Info("Stop reconciling Infrastructure of failed Shoot.", "namespace", request.Namespace, "name", infrastructure.Name)
 		return reconcile.Result{}, nil
 	}
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(infrastructure.ObjectMeta, infrastructure.Status.LastOperation)
+
+	leaseExpired := time.Now().UTC().After(cluster.LeaseExpiration.Time)
+	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+		return reconcile.Result{}, fmt.Errorf("stopping Infrastructure %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
+	}
 
 	switch {
 	case extensionscontroller.IsMigrated(infrastructure):

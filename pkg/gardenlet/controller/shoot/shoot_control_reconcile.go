@@ -40,9 +40,10 @@ import (
 func (c *Controller) runReconcileShootFlow(ctx context.Context, o *operation.Operation) *gardencorev1beta1helper.WrappedLastErrors {
 	// We create the botanists (which will do the actual work).
 	var (
-		botanist        *botanistpkg.Botanist
-		tasksWithErrors []string
-		err             error
+		botanist         *botanistpkg.Botanist
+		tasksWithErrors  []string
+		etcdBackupCopied bool
+		err              error
 	)
 
 	for _, lastError := range o.Shoot.Info.Status.LastErrors {
@@ -71,6 +72,10 @@ func (c *Controller) runReconcileShootFlow(ctx context.Context, o *operation.Ope
 		errors.ToExecute("Check required extensions", func() error {
 			return botanist.WaitUntilRequiredExtensionsReady(ctx)
 		}),
+		errors.ToExecute("Check if ETCD backups have been copied", func() error {
+			etcdBackupCopied, err = botanist.Shoot.Components.ControlPlane.EtcdMain.IsBackupCopied(ctx)
+			return err
+		}),
 	)
 
 	if err != nil {
@@ -87,6 +92,7 @@ func (c *Controller) runReconcileShootFlow(ctx context.Context, o *operation.Ope
 		generation                     = o.Shoot.Info.Generation
 		sniPhase                       = botanist.Shoot.Components.ControlPlane.KubeAPIServerSNIPhase
 		requestControlPlanePodsRestart = controllerutils.HasTask(o.Shoot.Info.Annotations, v1beta1constants.ShootTaskRestartControlPlanePods)
+		shouldCopyBackup               = !etcdBackupCopied && allowBackup && botanist.IsRestorePhase()
 
 		g                      = flow.NewGraph("Shoot cluster reconciliation")
 		ensureShootStateExists = g.Add(flow.Task{
@@ -164,11 +170,11 @@ func (c *Controller) runReconcileShootFlow(ctx context.Context, o *operation.Ope
 		})
 		deploySourceBackupEntryInGarden = g.Add(flow.Task{
 			Name: "Deploying source backup entry",
-			Fn:   flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.Deploy).DoIf(allowBackup && botanist.IsRestorePhase()),
+			Fn:   flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.Deploy).DoIf(shouldCopyBackup),
 		})
 		waitUntilSourceBackupEntryInGardenReconciled = g.Add(flow.Task{
 			Name:         "Waiting until the source backup entry has been reconciled",
-			Fn:           flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.Wait).DoIf(allowBackup && botanist.IsRestorePhase()),
+			Fn:           flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.Wait).DoIf(shouldCopyBackup),
 			Dependencies: flow.NewTaskIDs(deploySourceBackupEntryInGarden),
 		})
 		deployBackupEntryInGarden = g.Add(flow.Task{
@@ -183,22 +189,22 @@ func (c *Controller) runReconcileShootFlow(ctx context.Context, o *operation.Ope
 		})
 		deployETCDForCopy = g.Add(flow.Task{
 			Name:         "Deploying etcd resource to copy backups",
-			Fn:           flow.TaskFn(botanist.DeployEtcdForCopy).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(botanist.IsRestorePhase()),
+			Fn:           flow.TaskFn(botanist.DeployEtcdForCopy).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(shouldCopyBackup),
 			Dependencies: flow.NewTaskIDs().InsertIf(botanist.IsRestorePhase(), deploySecrets, deployCloudProviderSecret, waitUntilBackupEntryInGardenReconciled, waitUntilSourceBackupEntryInGardenReconciled),
 		})
 		waitUntilETCDForCopyReady = g.Add(flow.Task{
 			Name:         "Waiting until backups are copied",
-			Fn:           flow.TaskFn(botanist.WaitUntilEtcdForCopyReady).DoIf(botanist.IsRestorePhase()),
+			Fn:           flow.TaskFn(botanist.WaitUntilEtcdForCopyReady).DoIf(shouldCopyBackup),
 			Dependencies: flow.NewTaskIDs(deployETCDForCopy),
 		})
 		destroyETCDForCopy = g.Add(flow.Task{
 			Name:         "Destroying etcd used to copy backups",
-			Fn:           flow.TaskFn(botanist.DestroyEtcdForCopy).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(botanist.IsRestorePhase()),
+			Fn:           flow.TaskFn(botanist.DestroyEtcdForCopy).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(shouldCopyBackup),
 			Dependencies: flow.NewTaskIDs(waitUntilETCDForCopyReady),
 		})
 		waitDestroyETCDForCopy = g.Add(flow.Task{
 			Name:         "Waiting until etcd to copy buckets is destroyed",
-			Fn:           flow.TaskFn(botanist.WaitUntilEtcdForCopyDestroyed).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(botanist.IsRestorePhase()),
+			Fn:           flow.TaskFn(botanist.WaitUntilEtcdForCopyDestroyed).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(shouldCopyBackup),
 			Dependencies: flow.NewTaskIDs(destroyETCDForCopy),
 		})
 		deployInfrastructure = g.Add(flow.Task{
@@ -221,16 +227,6 @@ func (c *Controller) runReconcileShootFlow(ctx context.Context, o *operation.Ope
 			Fn:           flow.TaskFn(botanist.DeployNetworkPolicies).RetryUntilTimeout(defaultInterval, defaultTimeout),
 			Dependencies: flow.NewTaskIDs(deployNamespace).InsertIf(!staticNodesCIDR, waitUntilInfrastructureReady),
 		})
-		destroySourceBackupEntry = g.Add(flow.Task{
-			Name:         "Destroying source BackupEntry in garden cluster",
-			Fn:           flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.Destroy).DoIf(allowBackup && botanist.IsRestorePhase()),
-			Dependencies: flow.NewTaskIDs(waitDestroyETCDForCopy),
-		})
-		_ = g.Add(flow.Task{
-			Name:         "Waiting until source BackupEntry is destroyed",
-			Fn:           flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.WaitCleanup).DoIf(allowBackup && botanist.IsRestorePhase()),
-			Dependencies: flow.NewTaskIDs(destroySourceBackupEntry),
-		})
 		deployETCD = g.Add(flow.Task{
 			Name:         "Deploying main and events etcd",
 			Fn:           flow.TaskFn(botanist.DeployEtcd).RetryUntilTimeout(defaultInterval, defaultTimeout),
@@ -240,6 +236,16 @@ func (c *Controller) runReconcileShootFlow(ctx context.Context, o *operation.Ope
 			Name:         "Waiting until main and event etcd report readiness",
 			Fn:           flow.TaskFn(botanist.WaitUntilEtcdsReady).SkipIf(o.Shoot.HibernationEnabled),
 			Dependencies: flow.NewTaskIDs(deployETCD),
+		})
+		destroySourceBackupEntry = g.Add(flow.Task{
+			Name:         "Destroying source BackupEntry in garden cluster",
+			Fn:           flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.Destroy).DoIf(allowBackup && botanist.IsRestorePhase()),
+			Dependencies: flow.NewTaskIDs(waitDestroyETCDForCopy, waitUntilEtcdReady),
+		})
+		_ = g.Add(flow.Task{
+			Name:         "Waiting until source BackupEntry is destroyed",
+			Fn:           flow.TaskFn(botanist.Shoot.Components.SourceBackupEntry.WaitCleanup).DoIf(allowBackup && botanist.IsRestorePhase()),
+			Dependencies: flow.NewTaskIDs(destroySourceBackupEntry),
 		})
 		deployControlPlane = g.Add(flow.Task{
 			Name:         "Deploying shoot control plane components",
