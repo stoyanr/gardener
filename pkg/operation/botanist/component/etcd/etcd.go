@@ -114,6 +114,8 @@ type Etcd interface {
 	SetSourceBackupConfig(config *BackupConfig)
 	// SetHVPAConfig sets the HVPA configuration.
 	SetHVPAConfig(config *HVPAConfig)
+	// IsBackupCopied checks to see if the ETCD backup has been copied to the destination backupbucket
+	IsBackupCopied(context.Context) (bool, error)
 }
 
 // New creates a new instance of DeployWaiter for the Etcd.
@@ -598,10 +600,33 @@ func (e *etcd) ServiceDNSNames() []string {
 	)
 }
 
+func (e *etcd) IsBackupCopied(ctx context.Context) (bool, error) {
+	numContainers, err := e.getNumContainersInEtcdMainPod(ctx)
+	return numContainers == 2, err
+}
+
 func (e *etcd) SetSecrets(secrets Secrets)                       { e.secrets = secrets }
 func (e *etcd) SetBackupConfig(backupConfig *BackupConfig)       { e.backupConfig = backupConfig }
 func (e *etcd) SetSourceBackupConfig(backupConfig *BackupConfig) { e.sourceBackupConfig = backupConfig }
 func (e *etcd) SetHVPAConfig(hvpaConfig *HVPAConfig)             { e.hvpaConfig = hvpaConfig }
+
+func (e *etcd) getNumContainersInEtcdMainPod(ctx context.Context) (int, error) {
+	etcdMainSelector := e.podLabelSelector()
+
+	podsList := &corev1.PodList{}
+	if err := e.client.List(ctx, podsList, client.InNamespace(e.namespace), client.MatchingLabelsSelector{Selector: etcdMainSelector}); err != nil {
+		return 0, err
+	}
+	if len(podsList.Items) == 0 {
+		return 0, nil
+	}
+
+	if len(podsList.Items) > 1 {
+		return 0, fmt.Errorf("multiple ETCD Pods found. Pod list found: %v", podsList.Items)
+	}
+
+	return len(podsList.Items[0].Spec.Containers), nil
+}
 
 func (e *etcd) podLabelSelector() labels.Selector {
 	app, _ := labels.NewRequirement(v1beta1constants.LabelApp, selection.Equals, []string{LabelAppValue})
