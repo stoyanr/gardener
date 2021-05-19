@@ -188,8 +188,14 @@ func (b *Botanist) WaitUntilEtcdsReady(ctx context.Context) error {
 
 // InitiateETCDCopyOperation executes into the etcd-main pod and initiates a copy operation.
 func (b *Botanist) InitiateETCDCopyOperation(ctx context.Context) error {
-	return b.Shoot.Components.ControlPlane.EtcdMain.CopyOperation(ctx, kubernetes.NewPodExecutor(b.K8sSeedClient.RESTConfig()))
+	return b.Shoot.Components.ControlPlane.EtcdMain.InitiateCopyOperation(ctx, kubernetes.NewPodExecutor(b.K8sSeedClient.RESTConfig()))
 }
+
+// IsETCDCopyOperationInitiated executes into the etcd-main pod and checks if a copy operation has been initiated.
+func (b *Botanist) IsETCDCopyOperationInitiated(ctx context.Context) (bool, error) {
+	return b.Shoot.Components.ControlPlane.EtcdMain.IsCopyOperationInitiated(ctx, kubernetes.NewPodExecutor(b.K8sSeedClient.RESTConfig()))
+}
+
 
 // ScaleETCDToZero scales ETCD main and events replicas to zero.
 func (b *Botanist) ScaleETCDToZero(ctx context.Context) error {

@@ -17,6 +17,7 @@ package etcd_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
@@ -1009,11 +1010,7 @@ var _ = Describe("Etcd", func() {
 		})
 	})
 
-	Describe("#Snapshot", func() {
-		It("should return an error when the backup config is nil", func() {
-			Expect(etcd.CopyOperation(ctx, nil)).To(MatchError(ContainSubstring("no backup is configured")))
-		})
-
+	Describe("#InitiateCopyOperation", func() {
 		Context("w/ backup configuration", func() {
 			var (
 				podExecutor *mockkubernetes.MockPodExecutor
@@ -1029,7 +1026,7 @@ var _ = Describe("Etcd", func() {
 				podExecutor = mockkubernetes.NewMockPodExecutor(ctrl)
 			})
 
-			It("should successfully execute the full snapshot command", func() {
+			It("should successfully execute the command", func() {
 				podList := &corev1.PodList{
 					Items: []corev1.Pod{
 						{
@@ -1057,10 +1054,10 @@ var _ = Describe("Etcd", func() {
 					podName,
 					"backup-restore",
 					"/bin/sh",
-					"curl -k https://etcd-"+testRole+"-local:8080/object/copyop",
+					"curl -k https://etcd-"+testRole+"-local:8080/copyop/initiate",
 				)
 
-				Expect(etcd.CopyOperation(ctx, podExecutor)).To(Succeed())
+				Expect(etcd.InitiateCopyOperation(ctx, podExecutor)).To(Succeed())
 			})
 
 			It("should return an error when the pod listing fails", func() {
@@ -1071,7 +1068,7 @@ var _ = Describe("Etcd", func() {
 					client.MatchingLabelsSelector{Selector: selector},
 				).Return(fakeErr)
 
-				Expect(etcd.CopyOperation(ctx, podExecutor)).To(MatchError(fakeErr))
+				Expect(etcd.InitiateCopyOperation(ctx, podExecutor)).To(MatchError(fakeErr))
 			})
 
 			It("should return an error when the pod list is empty", func() {
@@ -1089,7 +1086,7 @@ var _ = Describe("Etcd", func() {
 					},
 				)
 
-				Expect(etcd.CopyOperation(ctx, podExecutor)).To(MatchError(ContainSubstring("didn't find any pods")))
+				Expect(etcd.InitiateCopyOperation(ctx, podExecutor)).To(MatchError(ContainSubstring("didn't find any pods")))
 			})
 
 			It("should return an error when the pod list is too large", func() {
@@ -1112,10 +1109,10 @@ var _ = Describe("Etcd", func() {
 					},
 				)
 
-				Expect(etcd.CopyOperation(ctx, podExecutor)).To(MatchError(ContainSubstring("multiple ETCD Pods found")))
+				Expect(etcd.InitiateCopyOperation(ctx, podExecutor)).To(MatchError(ContainSubstring("multiple ETCD Pods found")))
 			})
 
-			It("should return an error when the execution command fails", func() {
+			It("should return an error when the command fails", func() {
 				podList := &corev1.PodList{
 					Items: []corev1.Pod{
 						{
@@ -1143,10 +1140,89 @@ var _ = Describe("Etcd", func() {
 					podName,
 					"backup-restore",
 					"/bin/sh",
-					"curl -k https://etcd-"+testRole+"-local:8080/object/copyop",
+					"curl -k https://etcd-"+testRole+"-local:8080/copyop/initiate",
 				).Return(nil, fakeErr)
 
-				Expect(etcd.CopyOperation(ctx, podExecutor)).To(MatchError(fakeErr))
+				Expect(etcd.InitiateCopyOperation(ctx, podExecutor)).To(MatchError(fakeErr))
+			})
+		})
+	})
+
+	Describe("#IsCopyOperationInitiated", func() {
+		Context("w/ backup configuration", func() {
+			var (
+				podExecutor *mockkubernetes.MockPodExecutor
+				podName     = "some-etcd-pod"
+				selector    = labels.SelectorFromSet(map[string]string{
+					"app":  "etcd-statefulset",
+					"role": testRole,
+				})
+				podList = &corev1.PodList{
+					Items: []corev1.Pod{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: podName,
+							},
+						},
+					},
+				}
+			)
+
+			BeforeEach(func() {
+				etcd.SetBackupConfig(&BackupConfig{})
+				podExecutor = mockkubernetes.NewMockPodExecutor(ctrl)
+			})
+
+			It("should successfully execute the command and return false if it returns 'null'", func() {
+				c.EXPECT().List(
+					ctx,
+					gomock.AssignableToTypeOf(&corev1.PodList{}),
+					client.InNamespace(testNamespace),
+					client.MatchingLabelsSelector{Selector: selector},
+				).DoAndReturn(
+					func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+						podList.DeepCopyInto(list.(*corev1.PodList))
+						return nil
+					},
+				)
+
+				podExecutor.EXPECT().Execute(
+					testNamespace,
+					podName,
+					"backup-restore",
+					"/bin/sh",
+					"curl -k https://etcd-"+testRole+"-local:8080/copyop/status",
+				).Return(strings.NewReader("null"), nil)
+
+				result, err := etcd.IsCopyOperationInitiated(ctx, podExecutor)
+				Expect(err).To(Not(HaveOccurred()))
+				Expect(result).To(Equal(false))
+			})
+
+			It("should successfully execute the command and return true if it returns a copy operation", func() {
+				c.EXPECT().List(
+					ctx,
+					gomock.AssignableToTypeOf(&corev1.PodList{}),
+					client.InNamespace(testNamespace),
+					client.MatchingLabelsSelector{Selector: selector},
+				).DoAndReturn(
+					func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+						podList.DeepCopyInto(list.(*corev1.PodList))
+						return nil
+					},
+				)
+
+				podExecutor.EXPECT().Execute(
+					testNamespace,
+					podName,
+					"backup-restore",
+					"/bin/sh",
+					"curl -k https://etcd-"+testRole+"-local:8080/copyop/status",
+				).Return(strings.NewReader("{\"status\":\"Initial\"}"), nil)
+
+				result, err := etcd.IsCopyOperationInitiated(ctx, podExecutor)
+				Expect(err).To(Not(HaveOccurred()))
+				Expect(result).To(Equal(true))
 			})
 		})
 	})

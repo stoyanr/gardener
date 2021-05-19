@@ -51,20 +51,6 @@ func (mr *MockEtcdMockRecorder) AlertingRules() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AlertingRules", reflect.TypeOf((*MockEtcd)(nil).AlertingRules))
 }
 
-// CopyOperation mocks base method.
-func (m *MockEtcd) CopyOperation(arg0 context.Context, arg1 kubernetes.PodExecutor) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CopyOperation", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CopyOperation indicates an expected call of CopyOperation.
-func (mr *MockEtcdMockRecorder) CopyOperation(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CopyOperation", reflect.TypeOf((*MockEtcd)(nil).CopyOperation), arg0, arg1)
-}
-
 // Deploy mocks base method.
 func (m *MockEtcd) Deploy(arg0 context.Context) error {
 	m.ctrl.T.Helper()
@@ -91,6 +77,50 @@ func (m *MockEtcd) Destroy(arg0 context.Context) error {
 func (mr *MockEtcdMockRecorder) Destroy(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Destroy", reflect.TypeOf((*MockEtcd)(nil).Destroy), arg0)
+}
+
+// InitiateCopyOperation mocks base method.
+func (m *MockEtcd) InitiateCopyOperation(arg0 context.Context, arg1 kubernetes.PodExecutor) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InitiateCopyOperation", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InitiateCopyOperation indicates an expected call of InitiateCopyOperation.
+func (mr *MockEtcdMockRecorder) InitiateCopyOperation(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitiateCopyOperation", reflect.TypeOf((*MockEtcd)(nil).InitiateCopyOperation), arg0, arg1)
+}
+
+// IsBackupCopied mocks base method.
+func (m *MockEtcd) IsBackupCopied(arg0 context.Context) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBackupCopied", arg0)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsBackupCopied indicates an expected call of IsBackupCopied.
+func (mr *MockEtcdMockRecorder) IsBackupCopied(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBackupCopied", reflect.TypeOf((*MockEtcd)(nil).IsBackupCopied), arg0)
+}
+
+// IsCopyOperationInitiated mocks base method.
+func (m *MockEtcd) IsCopyOperationInitiated(arg0 context.Context, arg1 kubernetes.PodExecutor) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsCopyOperationInitiated", arg0, arg1)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsCopyOperationInitiated indicates an expected call of IsCopyOperationInitiated.
+func (mr *MockEtcdMockRecorder) IsCopyOperationInitiated(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsCopyOperationInitiated", reflect.TypeOf((*MockEtcd)(nil).IsCopyOperationInitiated), arg0, arg1)
 }
 
 // ScrapeConfigs mocks base method.
