@@ -16,7 +16,9 @@ package etcd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -104,8 +106,10 @@ type Etcd interface {
 	component.MonitoringComponent
 	// ServiceDNSNames returns the service DNS names for the etcd.
 	ServiceDNSNames() []string
-	// CopyOperation triggers the backup-restore sidecar to initialize a copy operation.
-	CopyOperation(context.Context, kubernetes.PodExecutor) error
+	// InitiateCopyOperation uses the backup-restore sidecar to initiate a copy operation.
+	InitiateCopyOperation(context.Context, kubernetes.PodExecutor) error
+	// IsCopyOperationInitiated uses the backup-restore sidecar to check if a copy operation has been initiated.
+	IsCopyOperationInitiated(context.Context, kubernetes.PodExecutor) (bool, error)
 	// SetSecrets sets the secrets.
 	SetSecrets(Secrets)
 	// SetBackupConfig sets the backup configuration.
@@ -569,7 +573,7 @@ func (e *etcd) emptyHVPA() *hvpav1alpha1.Hvpa {
 	return &hvpav1alpha1.Hvpa{ObjectMeta: metav1.ObjectMeta{Name: Name(e.role), Namespace: e.namespace}}
 }
 
-func (e *etcd) CopyOperation(ctx context.Context, podExecutor kubernetes.PodExecutor) error {
+func (e *etcd) InitiateCopyOperation(ctx context.Context, podExecutor kubernetes.PodExecutor) error {
 	etcdMainSelector := e.podLabelSelector()
 
 	podsList := &corev1.PodList{}
@@ -588,9 +592,50 @@ func (e *etcd) CopyOperation(ctx context.Context, podExecutor kubernetes.PodExec
 		podsList.Items[0].GetName(),
 		containerNameBackupRestore,
 		"/bin/sh",
-		fmt.Sprintf("curl -k https://etcd-%s-local:%d/object/copyop", e.role, PortBackupRestore),
+		fmt.Sprintf("curl -k https://etcd-%s-local:%d/copyop/initiate", e.role, PortBackupRestore),
 	)
 	return err
+}
+
+func (e *etcd) IsCopyOperationInitiated(ctx context.Context, podExecutor kubernetes.PodExecutor) (bool, error) {
+	etcdMainSelector := e.podLabelSelector()
+
+	podsList := &corev1.PodList{}
+	if err := e.client.List(ctx, podsList, client.InNamespace(e.namespace), client.MatchingLabelsSelector{Selector: etcdMainSelector}); err != nil {
+		return false, err
+	}
+	if len(podsList.Items) == 0 {
+		return false, fmt.Errorf("didn't find any pods for selector: %v", etcdMainSelector)
+	}
+	if len(podsList.Items) > 1 {
+		return false, fmt.Errorf("multiple ETCD Pods found. Pod list found: %v", podsList.Items)
+	}
+
+	stream, err := podExecutor.Execute(
+		e.namespace,
+		podsList.Items[0].GetName(),
+		containerNameBackupRestore,
+		"/bin/sh",
+		fmt.Sprintf("curl -k https://etcd-%s-local:%d/copyop/status", e.role, PortBackupRestore),
+	)
+	if err != nil {
+		return false, err
+	}
+
+	output, err := io.ReadAll(stream)
+	if err != nil {
+		return false, err
+	}
+
+	copyOperation := &struct {
+		Status string `json:"status"`
+	}{}
+	err = json.Unmarshal(output, &copyOperation)
+	if err != nil {
+		return false, err
+	}
+
+	return copyOperation != nil, nil
 }
 
 func (e *etcd) ServiceDNSNames() []string {

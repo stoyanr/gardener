@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"time"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
@@ -86,6 +88,7 @@ func (c *Controller) runPrepareShootControlPlaneMigration(o *operation.Operation
 		err                          error
 		tasksWithErrors              []string
 		kubeAPIServerDeploymentFound = true
+		etcdCopyOperationInitiated   = false
 	)
 
 	for _, lastError := range o.Shoot.Info.Status.LastErrors {
@@ -124,6 +127,25 @@ func (c *Controller) runPrepareShootControlPlaneMigration(o *operation.Operation
 			}
 			return nil
 		}),
+		utilerrors.ToExecute("Check if an etcd-main statefulset exists and if a copy operation has been initiated", func() error {
+			etcdMain := &druidv1alpha1.Etcd{}
+			if err := botanist.K8sSeedClient.APIReader().Get(ctx, kutil.Key(o.Shoot.SeedNamespace, v1beta1constants.ETCDMain), etcdMain); err != nil {
+				if !apierrors.IsNotFound(err) {
+					return err
+				}
+			}
+			if len(etcdMain.Name) > 0 && etcdMain.DeletionTimestamp == nil {
+				if etcdMain.Spec.Replicas > 0 {
+					etcdCopyOperationInitiated, err = botanist.IsETCDCopyOperationInitiated(ctx)
+					if err != nil {
+						return err
+					}
+				}
+			} else {
+				etcdCopyOperationInitiated = true
+			}
+			return nil
+		}),
 		utilerrors.ToExecute("Retrieve the Shoot namespace in the Seed cluster", func() error {
 			botanist.SeedNamespaceObject = &corev1.Namespace{}
 			err := botanist.K8sSeedClient.APIReader().Get(ctx, client.ObjectKey{Name: o.Shoot.SeedNamespace}, botanist.SeedNamespaceObject)
@@ -145,11 +167,12 @@ func (c *Controller) runPrepareShootControlPlaneMigration(o *operation.Operation
 	}
 
 	var (
-		nonTerminatingNamespace = botanist.SeedNamespaceObject.Status.Phase != corev1.NamespaceTerminating
-		cleanupShootResources   = nonTerminatingNamespace && kubeAPIServerDeploymentFound
-		wakeupRequired          = (o.Shoot.Info.Status.IsHibernated || (!o.Shoot.Info.Status.IsHibernated && o.Shoot.HibernationEnabled)) && cleanupShootResources
-		defaultTimeout          = 10 * time.Minute
-		defaultInterval         = 5 * time.Second
+		nonTerminatingNamespace   = botanist.SeedNamespaceObject.Status.Phase != corev1.NamespaceTerminating
+		cleanupShootResources     = nonTerminatingNamespace && kubeAPIServerDeploymentFound
+		copyOperationNotInitiated = nonTerminatingNamespace && !etcdCopyOperationInitiated
+		wakeupRequired            = (o.Shoot.Info.Status.IsHibernated || o.Shoot.HibernationEnabled) && cleanupShootResources
+		defaultTimeout            = 10 * time.Minute
+		defaultInterval           = 5 * time.Second
 
 		g = flow.NewGraph("Shoot's control plane preparation for migration")
 
@@ -169,17 +192,17 @@ func (c *Controller) runPrepareShootControlPlaneMigration(o *operation.Operation
 		})
 		deployETCD = g.Add(flow.Task{
 			Name:         "Deploying main and events etcd",
-			Fn:           flow.TaskFn(botanist.DeployEtcd).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(cleanupShootResources),
+			Fn:           flow.TaskFn(botanist.DeployEtcd).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(copyOperationNotInitiated),
 			Dependencies: flow.NewTaskIDs(deploySecrets),
 		})
 		scaleETCDToOne = g.Add(flow.Task{
 			Name:         "Scaling etcd up",
-			Fn:           flow.TaskFn(botanist.ScaleETCDToOne).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(cleanupShootResources && o.Shoot.HibernationEnabled),
+			Fn:           flow.TaskFn(botanist.ScaleETCDToOne).RetryUntilTimeout(defaultInterval, defaultTimeout).DoIf(copyOperationNotInitiated && wakeupRequired),
 			Dependencies: flow.NewTaskIDs(deployETCD),
 		})
 		waitUntilEtcdReady = g.Add(flow.Task{
 			Name:         "Waiting until main and event etcd report readiness",
-			Fn:           flow.TaskFn(botanist.WaitUntilEtcdsReady).DoIf(cleanupShootResources),
+			Fn:           flow.TaskFn(botanist.WaitUntilEtcdsReady).DoIf(copyOperationNotInitiated),
 			Dependencies: flow.NewTaskIDs(deployETCD, scaleETCDToOne),
 		})
 		wakeUpKubeAPIServer = g.Add(flow.Task{
@@ -254,18 +277,13 @@ func (c *Controller) runPrepareShootControlPlaneMigration(o *operation.Operation
 		})
 		initiateETCDCopyOperation = g.Add(flow.Task{
 			Name:         "Initiating etcd copy operation",
-			Fn:           flow.TaskFn(botanist.InitiateETCDCopyOperation).DoIf(cleanupShootResources),
+			Fn:           flow.TaskFn(botanist.InitiateETCDCopyOperation).DoIf(copyOperationNotInitiated),
 			Dependencies: flow.NewTaskIDs(waitUntilAPIServerDeleted),
-		})
-		scaleETCDToZero = g.Add(flow.Task{
-			Name:         "Scaling etcd to zero",
-			Fn:           flow.TaskFn(botanist.ScaleETCDToZero).DoIf(nonTerminatingNamespace),
-			Dependencies: flow.NewTaskIDs(initiateETCDCopyOperation),
 		})
 		deleteNamespace = g.Add(flow.Task{
 			Name:         "Deleting shoot namespace in Seed",
 			Fn:           flow.TaskFn(botanist.DeleteSeedNamespace).RetryUntilTimeout(defaultInterval, defaultTimeout),
-			Dependencies: flow.NewTaskIDs(deleteAllExtensionCRs, destroyDNSProviders, waitForManagedResourcesDeletion, scaleETCDToZero),
+			Dependencies: flow.NewTaskIDs(deleteAllExtensionCRs, destroyDNSProviders, waitForManagedResourcesDeletion, initiateETCDCopyOperation),
 		})
 		_ = g.Add(flow.Task{
 			Name:         "Waiting until shoot namespace in Seed has been deleted",
