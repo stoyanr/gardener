@@ -26,3 +26,10 @@ func ClusterAutoscalerRequired(pools []extensionsv1alpha1.WorkerPool) bool {
 	}
 	return false
 }
+
+func GetRecordType(recordType *extensionsv1alpha1.DNSRecordType) extensionsv1alpha1.DNSRecordType {
+	if recordType != nil {
+		return *recordType
+	}
+	return extensionsv1alpha1.DNSRecordTypeA
+}
