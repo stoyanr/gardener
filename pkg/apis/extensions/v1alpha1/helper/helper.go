@@ -26,3 +26,19 @@ func ClusterAutoscalerRequired(pools []extensionsv1alpha1.WorkerPool) bool {
 	}
 	return false
 }
+
+// GetDNSRecordType returns the value of the given recordType, or DNSRecordTypeA if nil.
+func GetDNSRecordType(recordType *extensionsv1alpha1.DNSRecordType) extensionsv1alpha1.DNSRecordType {
+	if recordType != nil {
+		return *recordType
+	}
+	return extensionsv1alpha1.DNSRecordTypeA
+}
+
+// GetDNSRecordTTL returns the value of the given ttl, or 120 if nil.
+func GetDNSRecordTTL(ttl *int64) int64 {
+	if ttl != nil {
+		return *ttl
+	}
+	return 120
+}
