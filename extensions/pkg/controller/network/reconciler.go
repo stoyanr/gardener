@@ -17,7 +17,6 @@ package network
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/gardener/gardener/extensions/pkg/controller/common"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
@@ -108,10 +108,18 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(network.ObjectMeta, network.Status.LastOperation)
 
-	leaseExpired := time.Now().UTC().After(cluster.LeaseExpiration.Time)
-	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
-		return reconcile.Result{}, fmt.Errorf("stopping  Network %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
-	}
+	// leaseExpired := time.Now().UTC().After(cluster.LeaseExpiration.Time)
+	// if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+	// 	return reconcile.Result{}, fmt.Errorf("stopping  Network %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
+	// }
+
+	watchdog := common.NewWatchdog(
+		r.logger.WithValues("namespace", request.Namespace, "infrastructure", network.Name),
+		fmt.Sprintf("owner.%s", cluster.Shoot.Spec.DNS),
+		string(cluster.Seed.UID),
+	)
+	watchdogCtx, cancel := watchdog.Start(ctx)
+	defer cancel()
 
 	switch {
 	case extensionscontroller.IsMigrated(network):
@@ -119,11 +127,11 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	case operationType == gardencorev1beta1.LastOperationTypeMigrate:
 		return r.migrate(ctx, network, cluster)
 	case network.DeletionTimestamp != nil:
-		return r.delete(ctx, network, cluster)
+		return r.delete(watchdogCtx, network, cluster)
 	case network.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationRestore:
-		return r.restore(ctx, network, cluster)
+		return r.restore(watchdogCtx, network, cluster)
 	default:
-		return r.reconcile(ctx, network, cluster, operationType)
+		return r.reconcile(watchdogCtx, network, cluster, operationType)
 	}
 }
 

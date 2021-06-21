@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/gardener/gardener/extensions/pkg/controller/common"
 	extensionshandler "github.com/gardener/gardener/extensions/pkg/handler"
 	extensionspredicate "github.com/gardener/gardener/extensions/pkg/predicate"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
@@ -53,6 +54,8 @@ type AddArgs struct {
 	// If the annotation is not ignored, the extension controller will only reconcile
 	// with a present operation annotation typically set during a reconcile (e.g in the maintenance time) by the Gardenlet
 	IgnoreOperationAnnotation bool
+	// Watchdog is a controller that can interrupt long runing reconciliations if the lease expires
+	Watchdog common.Watchdog
 }
 
 // DefaultPredicates returns the default predicates for an infrastructure reconciler.
@@ -77,7 +80,7 @@ func DefaultPredicates(ignoreOperationAnnotation bool) []predicate.Predicate {
 // Add creates a new Infrastructure Controller and adds it to the Manager.
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager, args AddArgs) error {
-	args.ControllerOptions.Reconciler = NewReconciler(mgr, args.Actuator)
+	args.ControllerOptions.Reconciler = NewReconciler(mgr, args.Actuator, args.Watchdog)
 	return add(mgr, args)
 }
 

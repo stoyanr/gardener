@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/gardener/gardener/extensions/pkg/controller/common"
 	extensionshandler "github.com/gardener/gardener/extensions/pkg/handler"
 	extensionspredicate "github.com/gardener/gardener/extensions/pkg/predicate"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
@@ -171,7 +172,7 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 
 	var result reconcile.Result
 
-	shoot, leaseExpired, err := extensionscontroller.GetShoot(ctx, r.client, request.Namespace)
+	shoot, seedUID, err := extensionscontroller.GetShoot(ctx, r.client, request.Namespace)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -182,9 +183,17 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(ex.ObjectMeta, ex.Status.LastOperation)
-	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
-		return reconcile.Result{}, fmt.Errorf("stopping Extension %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
-	}
+	// if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+	// 	return reconcile.Result{}, fmt.Errorf("stopping Extension %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
+	// }
+
+	watchdog := common.NewWatchdog(
+		r.logger.WithValues("namespace", request.Namespace, "infrastructure", ex.Name),
+		fmt.Sprintf("owner.%s", shoot.Spec.DNS),
+		string(seedUID),
+	)
+	watchdogCtx, cancel := watchdog.Start(ctx)
+	defer cancel()
 
 	switch {
 	case extensionscontroller.IsMigrated(ex):
@@ -192,11 +201,11 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	case operationType == gardencorev1beta1.LastOperationTypeMigrate:
 		return r.migrate(ctx, ex)
 	case ex.DeletionTimestamp != nil:
-		return r.delete(ctx, ex)
+		return r.delete(watchdogCtx, ex)
 	case ex.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationRestore:
-		return r.restore(ctx, ex, operationType)
+		return r.restore(watchdogCtx, ex, operationType)
 	default:
-		if result, err = r.reconcile(ctx, ex, operationType); err != nil {
+		if result, err = r.reconcile(watchdogCtx, ex, operationType); err != nil {
 			return result, err
 		}
 		return reconcile.Result{Requeue: r.resync != 0, RequeueAfter: r.resync}, nil

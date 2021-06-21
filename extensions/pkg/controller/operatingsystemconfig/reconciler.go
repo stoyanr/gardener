@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/gardener/gardener/extensions/pkg/controller/common"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
@@ -93,7 +94,7 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		return reconcile.Result{}, fmt.Errorf("could not fetch OperatingSystemConfig: %+v", err)
 	}
 
-	shoot, leaseExpired, err := extensionscontroller.GetShoot(ctx, r.client, request.Namespace)
+	shoot, seedUID, err := extensionscontroller.GetShoot(ctx, r.client, request.Namespace)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -104,9 +105,18 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(osc.ObjectMeta, osc.Status.LastOperation)
-	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
-		return reconcile.Result{}, fmt.Errorf("stopping  OperatingSystemConfig %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
-	}
+	// if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+	// 	return reconcile.Result{}, fmt.Errorf("stopping  OperatingSystemConfig %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
+	// }
+
+	watchdog := common.NewWatchdog(
+		r.logger.WithValues("namespace", request.Namespace, "infrastructure", osc.Name),
+		fmt.Sprintf("owner.%s", shoot.Spec.DNS),
+		seedUID,
+	)
+
+	watchdogCtx, cancel := watchdog.Start(ctx)
+	defer cancel()
 
 	switch {
 	case extensionscontroller.IsMigrated(osc):
@@ -114,11 +124,11 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	case operationType == gardencorev1beta1.LastOperationTypeMigrate:
 		return r.migrate(ctx, osc)
 	case osc.DeletionTimestamp != nil:
-		return r.delete(ctx, osc)
+		return r.delete(watchdogCtx, osc)
 	case osc.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationRestore:
-		return r.restore(ctx, osc)
+		return r.restore(watchdogCtx, osc)
 	default:
-		return r.reconcile(ctx, osc, operationType)
+		return r.reconcile(watchdogCtx, osc, operationType)
 	}
 }
 

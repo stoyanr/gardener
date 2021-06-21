@@ -207,15 +207,15 @@ func ShootFromCluster(decoder runtime.Decoder, cluster *extensionsv1alpha1.Clust
 }
 
 // GetShoot tries to read Gardener's Cluster extension resource in the given namespace and return the embedded Shoot resource.
-func GetShoot(ctx context.Context, c client.Client, namespace string) (*gardencorev1beta1.Shoot, bool, error) {
+func GetShoot(ctx context.Context, c client.Client, namespace string) (*gardencorev1beta1.Shoot, string, error) {
 	cluster := &extensionsv1alpha1.Cluster{}
 	if err := c.Get(ctx, kutil.Key(namespace), cluster); err != nil {
-		return nil, false, err
+		return nil, "", err
 	}
 
-	expired := time.Now().UTC().After(cluster.Spec.LeaseExpiration.Time)
+	seedUID := string(cluster.ObjectMeta.UID)
 	shoot, err := ShootFromCluster(NewGardenDecoder(), cluster)
-	return shoot, expired, err
+	return shoot, seedUID, err
 }
 
 // NewGardenDecoder returns a new Garden API decoder.

@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/gardener/gardener/extensions/pkg/controller/common"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
@@ -95,7 +96,7 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	shootTechnicalID, _ := ExtractShootDetailsFromBackupEntryName(be.Name)
-	shoot, leaseExpired, err := extensionscontroller.GetShoot(ctx, r.client, shootTechnicalID)
+	shoot, seedUID, err := extensionscontroller.GetShoot(ctx, r.client, shootTechnicalID)
 	// As BackupEntry continues to exist post deletion of a Shoot,
 	// we do not want to block its deletion when the Cluster is not found.
 	if client.IgnoreNotFound(err) != nil {
@@ -108,9 +109,18 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(be.ObjectMeta, be.Status.LastOperation)
-	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
-		return reconcile.Result{}, fmt.Errorf("stopping BackupEntry %s reconciliation: the cluster lease for the Shoot has expired.", request.Name)
-	}
+	// if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+	// 	return reconcile.Result{}, fmt.Errorf("stopping BackupEntry %s reconciliation: the cluster lease for the Shoot has expired.", request.Name)
+	// }
+
+	watchdog := common.NewWatchdog(
+		r.logger.WithValues("namespace", request.Namespace, "infrastructure", be.Name),
+		fmt.Sprintf("owner.%s", shoot.Spec.DNS),
+		string(seedUID),
+	)
+
+	watchdogCtx, cancel := watchdog.Start(ctx)
+	defer cancel()
 
 	switch {
 	case extensionscontroller.IsMigrated(be):
@@ -118,11 +128,11 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	case operationType == gardencorev1beta1.LastOperationTypeMigrate:
 		return r.migrate(ctx, be)
 	case be.DeletionTimestamp != nil:
-		return r.delete(ctx, be)
+		return r.delete(watchdogCtx, be)
 	case be.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationRestore:
-		return r.restore(ctx, be)
+		return r.restore(watchdogCtx, be)
 	default:
-		return r.reconcile(ctx, be, operationType)
+		return r.reconcile(watchdogCtx, be, operationType)
 	}
 }
 

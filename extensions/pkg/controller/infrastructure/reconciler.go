@@ -17,7 +17,6 @@ package infrastructure
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/gardener/gardener/extensions/pkg/controller/common"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
@@ -58,17 +58,20 @@ type reconciler struct {
 	client   client.Client
 	reader   client.Reader
 	recorder record.EventRecorder
+
+	watchDog common.Watchdog
 }
 
 // NewReconciler creates a new reconcile.Reconciler that reconciles
 // infrastructure resources of Gardener's `extensions.gardener.cloud` API group.
-func NewReconciler(mgr manager.Manager, actuator Actuator) reconcile.Reconciler {
+func NewReconciler(mgr manager.Manager, actuator Actuator, watchDog common.Watchdog) reconcile.Reconciler {
 	return extensionscontroller.OperationAnnotationWrapper(
 		func() client.Object { return &extensionsv1alpha1.Infrastructure{} },
 		&reconciler{
 			logger:   log.Log.WithName(ControllerName),
 			actuator: actuator,
 			recorder: mgr.GetEventRecorderFor(ControllerName),
+			watchDog: watchDog,
 		},
 	)
 }
@@ -109,11 +112,19 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	}
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(infrastructure.ObjectMeta, infrastructure.Status.LastOperation)
+	// leaseExpired := time.Now().UTC().After(cluster.LeaseExpiration.Time)
+	// if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+	// 	return reconcile.Result{}, fmt.Errorf("stopping Controlplane %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
+	// }
 
-	leaseExpired := time.Now().UTC().After(cluster.LeaseExpiration.Time)
-	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
-		return reconcile.Result{}, fmt.Errorf("stopping Infrastructure %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
-	}
+	watchdog := common.NewWatchdog(
+		r.logger.WithValues("namespace", request.Namespace, "infrastructure", infrastructure.Name),
+		fmt.Sprintf("owner.%s", cluster.Shoot.Spec.DNS),
+		string(cluster.Seed.UID),
+	)
+
+	watchdogCtx, cancel := watchdog.Start(ctx)
+	defer cancel()
 
 	switch {
 	case extensionscontroller.IsMigrated(infrastructure):
@@ -121,11 +132,11 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	case operationType == gardencorev1beta1.LastOperationTypeMigrate:
 		return r.migrate(ctx, logger.WithValues("operation", "migrate"), infrastructure, cluster)
 	case infrastructure.DeletionTimestamp != nil:
-		return r.delete(ctx, logger.WithValues("operation", "delete"), infrastructure, cluster)
+		return r.delete(watchdogCtx, logger.WithValues("operation", "delete"), infrastructure, cluster)
 	case infrastructure.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationRestore:
-		return r.restore(ctx, logger.WithValues("operation", "restore"), infrastructure, cluster)
+		return r.restore(watchdogCtx, logger.WithValues("operation", "restore"), infrastructure, cluster)
 	default:
-		return r.reconcile(ctx, logger.WithValues("operation", "reconcile"), infrastructure, cluster, operationType)
+		return r.reconcile(watchdogCtx, logger.WithValues("operation", "reconcile"), infrastructure, cluster, operationType)
 	}
 }
 

@@ -17,7 +17,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -30,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
+	"github.com/gardener/gardener/extensions/pkg/controller/common"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	gardencorev1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
@@ -93,10 +93,18 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 
 	operationType := gardencorev1beta1helper.ComputeOperationType(worker.ObjectMeta, worker.Status.LastOperation)
 
-	leaseExpired := time.Now().UTC().After(cluster.LeaseExpiration.Time)
-	if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
-		return reconcile.Result{}, fmt.Errorf("stopping Worker %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
-	}
+	// leaseExpired := time.Now().UTC().After(cluster.LeaseExpiration.Time)
+	// if leaseExpired && operationType != gardencorev1beta1.LastOperationTypeMigrate {
+	// 	return reconcile.Result{}, fmt.Errorf("stopping Worker %s/%s reconciliation: the cluster lease for the Shoot has expired.", request.Namespace, request.Name)
+	// }
+
+	watchdog := common.NewWatchdog(
+		r.logger.WithValues("namespace", request.Namespace, "infrastructure", worker.Name),
+		fmt.Sprintf("owner.%s", cluster.Shoot.Spec.DNS),
+		string(cluster.Seed.UID),
+	)
+	watchdogCtx, cancel := watchdog.Start(ctx)
+	defer cancel()
 
 	switch {
 	case isWorkerMigrated(worker):
@@ -105,11 +113,11 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	case operationType == gardencorev1beta1.LastOperationTypeMigrate:
 		return r.migrate(ctx, logger.WithValues("operation", "migrate"), worker, cluster)
 	case worker.DeletionTimestamp != nil:
-		return r.delete(ctx, logger.WithValues("operation", "delete"), worker, cluster)
+		return r.delete(watchdogCtx, logger.WithValues("operation", "delete"), worker, cluster)
 	case worker.Annotations[v1beta1constants.GardenerOperation] == v1beta1constants.GardenerOperationRestore:
-		return r.restore(ctx, logger.WithValues("operation", "restore"), worker, cluster)
+		return r.restore(watchdogCtx, logger.WithValues("operation", "restore"), worker, cluster)
 	default:
-		return r.reconcile(ctx, logger.WithValues("operation", "reconcile"), worker, cluster, operationType)
+		return r.reconcile(watchdogCtx, logger.WithValues("operation", "reconcile"), worker, cluster, operationType)
 	}
 }
 
